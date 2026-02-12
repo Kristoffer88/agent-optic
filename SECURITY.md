@@ -1,6 +1,6 @@
 # Security
 
-`~/.claude/` contains your full Claude Code session history — prompts, source code, credentials, file paths. Treat it like your shell history and SSH keys combined.
+`~/.claude/` contains all input and output from your Claude Code sessions.
 
 ## How this library handles it
 
@@ -12,10 +12,10 @@
 |---------|--------|
 | `local` (default) | Tool results, thinking blocks |
 | `shareable` | + absolute paths, home directory |
-| `strict` | + prompt text, emails, credential patterns, IPs |
+| `strict` | + prompt text, emails, IPs |
 
-Regex can't catch everything. Review output before sharing.
+Review output before sharing.
 
 ## Reporting vulnerabilities
 
-Open a GitHub issue or email.
+Open a GitHub issue.
