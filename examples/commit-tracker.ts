@@ -207,7 +207,7 @@ async function run() {
 
 async function getCommitHistory(opts: { from?: string; to?: string } = {}): Promise<CommitInfo[]> {
 	const since = opts.from ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-	const args = ["log", `--since=${since}`, "--format=%H\t%an\t%aI\t%at\t%s", "--shortstat"];
+	const args = ["log", "--all", `--since=${since}`, "--format=%H\t%an\t%aI\t%at\t%s", "--shortstat"];
 	if (opts.to) args.push(`--until=${opts.to}`);
 
 	const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "pipe" });
@@ -285,6 +285,19 @@ async function init(opts: { from?: string; to?: string } = {}) {
 	// Filter to project
 	const projectSessions = allSessions.filter((s) => isProjectMatch(s, repoRoot, repoName));
 
+	// Count how many commits each session matches (for fair cost splitting)
+	const sessionCommitCount = new Map<string, number>();
+	const commitMatches = new Map<string, SessionMeta[]>();
+	for (const commit of commits) {
+		if (existingHashes.has(commit.hash)) continue;
+		const matched = findMatchingSessions(commit.timestamp, projectSessions);
+		if (matched.length === 0) continue;
+		commitMatches.set(commit.hash, matched);
+		for (const s of matched) {
+			sessionCommitCount.set(s.sessionId, (sessionCommitCount.get(s.sessionId) ?? 0) + 1);
+		}
+	}
+
 	const newRecords: string[] = [];
 	let skippedNoAI = 0;
 	let skippedExisting = 0;
@@ -295,8 +308,8 @@ async function init(opts: { from?: string; to?: string } = {}) {
 			continue;
 		}
 
-		const matched = findMatchingSessions(commit.timestamp, projectSessions);
-		if (matched.length === 0) {
+		const matched = commitMatches.get(commit.hash);
+		if (!matched) {
 			skippedNoAI++;
 			continue;
 		}
@@ -306,15 +319,19 @@ async function init(opts: { from?: string; to?: string } = {}) {
 		const models = new Set<string>();
 
 		for (const s of matched) {
-			tokens.input += s.totalInputTokens;
-			tokens.output += s.totalOutputTokens;
-			tokens.cache_read += s.cacheReadInputTokens;
-			tokens.cache_write += s.cacheCreationInputTokens;
-			messages += s.messageCount;
+			const share = sessionCommitCount.get(s.sessionId) ?? 1;
+			tokens.input += Math.round(s.totalInputTokens / share);
+			tokens.output += Math.round(s.totalOutputTokens / share);
+			tokens.cache_read += Math.round(s.cacheReadInputTokens / share);
+			tokens.cache_write += Math.round(s.cacheCreationInputTokens / share);
+			messages += Math.round(s.messageCount / share);
 			if (s.model) models.add(s.model);
 		}
 
-		const costUsd = matched.reduce((sum, s) => sum + estimateCost(s), 0);
+		const costUsd = matched.reduce((sum, s) => {
+			const share = sessionCommitCount.get(s.sessionId) ?? 1;
+			return sum + estimateCost(s) / share;
+		}, 0);
 
 		newRecords.push(JSON.stringify({
 			commit: commit.hash,
