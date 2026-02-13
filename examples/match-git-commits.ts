@@ -55,11 +55,15 @@ async function getGitCommits(): Promise<GitCommit[]> {
 		const [hash, author, date, timestamp, message] = parts;
 
 		let filesChanged = 0;
-		const nextLine = lines[i + 1]?.trim() ?? "";
-		const match = nextLine.match(/(\d+) files? changed/);
-		if (match) {
-			filesChanged = parseInt(match[1]);
-			i++; // skip stat line
+		// --shortstat puts a blank line between format and stat lines
+		for (let j = 1; j <= 2; j++) {
+			const peek = lines[i + j]?.trim() ?? "";
+			const match = peek.match(/(\d+) files? changed/);
+			if (match) {
+				filesChanged = parseInt(match[1]);
+				i += j;
+				break;
+			}
 		}
 
 		commits.push({
@@ -99,8 +103,9 @@ async function main() {
 		sessions = all;
 	} else {
 		sessions = all.filter((s) => {
-			const sp = s.project;
-			return sp === repoPath || repoPath.startsWith(sp + "/") || sp.startsWith(repoPath + "/") || s.projectName === repoName;
+			const sp = s.project.toLowerCase();
+			const rp = repoPath.toLowerCase();
+			return sp === rp || sp.startsWith(rp + "/") || s.projectName?.toLowerCase() === repoName.toLowerCase();
 		});
 		if (sessions.length === 0) {
 			console.log(`No sessions found for project "${repoName}" (${repoPath}).`);
