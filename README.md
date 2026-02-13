@@ -1,6 +1,6 @@
 # claude-optic
 
-> Every developer using Claude Code generates a complete record of their AI-assisted development. This library turns that data into structured JSON — cost per feature, automated timesheets, session digests, work patterns — ready to pipe to `claude` or any LLM for analysis.
+> Reads `~/.claude/` and returns structured JSON — sessions, costs, timesheets, work patterns. Pipe to `claude` or any LLM.
 
 Zero-dependency, local-first TypeScript library for reading [Claude Code](https://docs.anthropic.com/en/docs/claude-code) session data from `~/.claude/`.
 
@@ -14,13 +14,13 @@ bunx claude-optic sessions
 
 ## Features
 
-- **Zero runtime dependencies** — every dependency is an attack surface
-- **No network access** — data never leaves your machine
-- **Privacy by default** — strips tool results and thinking blocks before data reaches your code
-- **Two-tier session loading** — fast (history.jsonl only) or detailed (full session parse)
-- **Streaming support** — process large session files without loading everything into memory
-- **Cost estimation** — built-in model pricing for all Claude models
-- **Bun-native** — uses `Bun.file()`, `Bun.Glob` for optimal performance
+- **Zero runtime dependencies**
+- **No network access**
+- **Privacy by default** — strips tool results and thinking blocks
+- **Two-tier session loading** — fast (`history.jsonl`) or detailed (full parse)
+- **Streaming JSONL parsing**
+- **Cost estimation**
+- **Bun-native** — `Bun.file()`, `Bun.Glob`
 
 ## Install
 
