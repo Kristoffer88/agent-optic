@@ -1,6 +1,6 @@
 # claude-optic
 
-> Every developer using Claude Code generates a complete record of their AI-assisted development. This library turns that data into actionable intelligence — cost per feature, automated timesheets, work pattern analysis, and a prompt library extracted from your own history.
+> Every developer using Claude Code generates a complete record of their AI-assisted development. This library turns that data into structured JSON — cost per feature, automated timesheets, session digests, work patterns — ready to pipe to `claude` or any LLM for analysis.
 
 Zero-dependency, local-first TypeScript library for reading [Claude Code](https://docs.anthropic.com/en/docs/claude-code) session data from `~/.claude/`.
 
@@ -89,35 +89,28 @@ opus-4-5-20250514              12     4.2M      1.1M     3.8M      2.1M       $9
 sonnet-4-5-20250929            45     8.1M      2.3M     6.2M      4.5M       $42.15
 ```
 
-### Creative Sparks
+### Prompt History
 
-Find your most creative and ambitious sessions — scored by keywords, conversation depth, and building activity.
-
-```bash
-bun examples/creative-sparks.ts --top 10
-```
-
-### Roast Me
-
-Analyze your work patterns: late nights, weekend coding, longest sessions, and biggest token burns.
+Export sampled prompts grouped by project as JSON — pipe to an LLM for categorization or analysis.
 
 ```bash
-bun examples/roast-me.ts
+bun examples/prompt-history.ts --from 2026-01-01 | claude "categorize these prompts by intent"
 ```
 
-```
---- The Roast ---
-  You had 12 late-night sessions. Your code reviewer is melatonin.
-  You've burned $142.50 in tokens. That's real money on robot opinions.
-  Your longest session was 3h 42m. That's not a session, that's a relationship.
-```
+### Session Digest
 
-### Prompt Library
-
-Extract unique, reusable prompts from your history — deduplicated and grouped by intent.
+Compact session summaries as JSON — first prompt, branch, model, token counts, cost, duration.
 
 ```bash
-bun examples/prompt-library.ts --min-length 50
+bun examples/session-digest.ts --days 7 | claude "which sessions were the most productive?"
+```
+
+### Work Patterns
+
+Aggregated work pattern metrics as JSON — hour distribution, late-night/weekend counts, longest and most expensive sessions.
+
+```bash
+bun examples/work-patterns.ts | claude "analyze my work patterns and suggest improvements"
 ```
 
 ### Pipe Match
