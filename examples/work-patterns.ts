@@ -17,8 +17,8 @@ function getArg(name: string, fallback: string): string {
 	return idx !== -1 ? (args[idx + 1] ?? fallback) : fallback;
 }
 
-const from = getArg("--from", toLocalDate(new Date(Date.now() - 30 * 86400000)));
-const to = getArg("--to", toLocalDate(new Date()));
+const from = getArg("--from", toLocalDate(Date.now() - 30 * 86400000));
+const to = getArg("--to", toLocalDate(Date.now()));
 
 function durationMinutes(s: SessionMeta): number {
 	return (s.timeRange.end - s.timeRange.start) / 60000;
@@ -57,7 +57,7 @@ async function main() {
 
 	const byDate = new Map<string, number>();
 	for (const s of sessions) {
-		const date = toLocalDate(new Date(s.timeRange.start));
+		const date = toLocalDate(s.timeRange.start);
 		byDate.set(date, (byDate.get(date) ?? 0) + 1);
 	}
 	const busiestDay = [...byDate.entries()].sort((a, b) => b[1] - a[1])[0];
@@ -68,14 +68,14 @@ async function main() {
 	const byCost = [...sessions].sort((a, b) => estimateCost(b) - estimateCost(a));
 
 	const longestSessions = byDuration.slice(0, 5).map((s) => ({
-		date: toLocalDate(new Date(s.timeRange.start)),
+		date: toLocalDate(s.timeRange.start),
 		project: s.projectName,
 		durationMinutes: Math.round(durationMinutes(s)),
 		prompts: s.prompts.length,
 	}));
 
 	const mostExpensiveSessions = byCost.slice(0, 5).map((s) => ({
-		date: toLocalDate(new Date(s.timeRange.start)),
+		date: toLocalDate(s.timeRange.start),
 		project: s.projectName,
 		model: s.model ?? null,
 		estimatedCostUsd: +estimateCost(s).toFixed(4),
@@ -84,12 +84,9 @@ async function main() {
 	// Per-project breakdown (top 10)
 	const projectMap = new Map<string, SessionMeta[]>();
 	for (const s of sessions) {
-		let arr = projectMap.get(s.projectName);
-		if (!arr) {
-			arr = [];
-			projectMap.set(s.projectName, arr);
-		}
+		const arr = projectMap.get(s.projectName) ?? [];
 		arr.push(s);
+		projectMap.set(s.projectName, arr);
 	}
 	const byProject = [...projectMap.entries()]
 		.sort((a, b) => b[1].length - a[1].length)

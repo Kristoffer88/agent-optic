@@ -17,8 +17,8 @@ function getArg(name: string, fallback: string): string {
 	return idx !== -1 ? (args[idx + 1] ?? fallback) : fallback;
 }
 
-const from = getArg("--from", toLocalDate(new Date(Date.now() - 30 * 86400000)));
-const to = getArg("--to", toLocalDate(new Date()));
+const from = getArg("--from", toLocalDate(Date.now() - 30 * 86400000));
+const to = getArg("--to", toLocalDate(Date.now()));
 
 const MAX_PROJECTS = 15;
 const MAX_TOTAL_SAMPLES = 80;
@@ -71,36 +71,36 @@ async function main() {
 	const perProjectCap = Math.max(2, Math.floor(MAX_TOTAL_SAMPLES / (numProjects || 1)));
 
 	const projectEntries = topProjects.map(([project, data]) => {
-			// Deduplicate
-			const seen = new Set<string>();
-			const unique: string[] = [];
-			for (const p of data.prompts) {
-				const key = dedupeKey(p);
-				if (!seen.has(key)) {
-					seen.add(key);
-					unique.push(p);
-				}
+		// Deduplicate
+		const seen = new Set<string>();
+		const unique: string[] = [];
+		for (const p of data.prompts) {
+			const key = dedupeKey(p);
+			if (!seen.has(key)) {
+				seen.add(key);
+				unique.push(p);
 			}
+		}
 
-			// Sample evenly if over cap
-			let sampled: string[];
-			if (unique.length <= perProjectCap) {
-				sampled = unique;
-			} else {
-				const step = unique.length / perProjectCap;
-				sampled = [];
-				for (let i = 0; i < perProjectCap; i++) {
-					sampled.push(unique[Math.floor(i * step)]);
-				}
+		// Sample evenly if over cap
+		let sampled: string[];
+		if (unique.length <= perProjectCap) {
+			sampled = unique;
+		} else {
+			const step = unique.length / perProjectCap;
+			sampled = [];
+			for (let i = 0; i < perProjectCap; i++) {
+				sampled.push(unique[Math.floor(i * step)]);
 			}
+		}
 
-			return {
-				project,
-				sessionCount: data.sessionIds.size,
-				promptCount: data.prompts.length,
-				samples: sampled.map((p) => truncate(p, MAX_PROMPT_LENGTH)),
-			};
-		});
+		return {
+			project,
+			sessionCount: data.sessionIds.size,
+			promptCount: data.prompts.length,
+			samples: sampled.map((p) => truncate(p, MAX_PROMPT_LENGTH)),
+		};
+	});
 
 	console.log(
 		JSON.stringify(

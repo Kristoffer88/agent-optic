@@ -21,8 +21,8 @@ const MAX_PROMPT_LENGTH = 150;
 const DEFAULT_TOP = 35;
 
 const days = parseInt(getArg("--days", "7"));
-const from = getArg("--from", toLocalDate(new Date(Date.now() - days * 86400000)));
-const to = getArg("--to", toLocalDate(new Date()));
+const from = getArg("--from", toLocalDate(Date.now() - days * 86400000));
+const to = getArg("--to", toLocalDate(Date.now()));
 const topN = parseInt(getArg("--top", String(DEFAULT_TOP)));
 
 function clean(text: string): string {
@@ -57,7 +57,7 @@ async function main() {
 	const digests = filtered.map((s) => ({
 		sessionId: s.sessionId,
 		project: s.projectName,
-		date: toLocalDate(new Date(s.timeRange.start)),
+		date: toLocalDate(s.timeRange.start),
 		branch: s.gitBranch ?? null,
 		model: s.model ?? null,
 		promptCount: s.prompts.length,

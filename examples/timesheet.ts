@@ -9,7 +9,7 @@
  * and outputs a table suitable for time tracking or invoicing.
  */
 
-import { createClaudeHistory, toLocalDate, type SessionMeta } from "../src/index.js";
+import { createClaudeHistory, today, toLocalDate, type SessionMeta } from "../src/index.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string): string | undefined {
@@ -17,13 +17,12 @@ function getArg(name: string): string | undefined {
 	return idx !== -1 ? args[idx + 1] : undefined;
 }
 
-const now = new Date();
-const dayOfWeek = now.getDay();
+const now = Date.now();
+const dayOfWeek = new Date(now).getDay();
 const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-const monday = new Date(now.getTime() - mondayOffset * 86400000);
 
-const from = getArg("--from") ?? monday.toISOString().slice(0, 10);
-const to = getArg("--to") ?? now.toISOString().slice(0, 10);
+const from = getArg("--from") ?? toLocalDate(now - mondayOffset * 86400000);
+const to = getArg("--to") ?? today();
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -34,7 +33,7 @@ async function main() {
 	const byDateProject = new Map<string, Map<string, SessionMeta[]>>();
 
 	for (const s of sessions) {
-		const date = toLocalDate(new Date(s.timeRange.start));
+		const date = toLocalDate(s.timeRange.start);
 		const project = s.projectName || "unknown";
 
 		let projectMap = byDateProject.get(date);
