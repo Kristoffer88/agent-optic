@@ -293,33 +293,27 @@ const ch = createHistory({
 ## CLI
 
 ```bash
-# List today's sessions
-bunx agent-optic sessions
+# Agent-friendly list (JSONL stream)
+bunx agent-optic sessions --provider codex --format jsonl
 
-# Sessions for a specific date
-bunx agent-optic sessions --date 2026-02-09
+# Detail for one session
+bunx agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai
 
-# Date range
-bunx agent-optic sessions --from 2026-02-01 --to 2026-02-09
+# Transcript stream (limit + selected fields)
+bunx agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50 --fields timestamp,message
 
-# Use another provider
-bunx agent-optic sessions --provider codex --date 2026-02-09
-bunx agent-optic sessions --provider openai --date 2026-02-09
+# Tool usage report
+bunx agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
 
 # Daily summary
 bunx agent-optic daily --date 2026-02-09
 
-# List projects
-bunx agent-optic projects
-
-# Stats
-bunx agent-optic stats
-
-# Export with strict privacy
-bunx agent-optic export --from 2026-02-01 --privacy strict
+# Raw output without envelope
+bunx agent-optic sessions --provider claude --date 2026-02-09 --raw
 ```
 
-All commands output JSON.
+`--format json` returns a stable envelope (`schemaVersion`, `command`, `provider`, `generatedAt`, `data`) by default.
+Use `--raw` for data-only output and `--format jsonl` for one JSON object per line.
 
 ## Architecture
 

@@ -6,17 +6,24 @@ import type { Provider } from "../types/provider.js";
 import { today } from "../utils/dates.js";
 import { defaultProviderDir, isProvider } from "../utils/providers.js";
 
+const SCHEMA_VERSION = "1.0";
+
+type OutputFormat = "json" | "jsonl";
+
 const HELP = `agent-optic — Read AI assistant session data from local provider directories
 
 USAGE
   agent-optic <command> [options]
 
 COMMANDS
-  sessions    List sessions (default: today)
-  projects    List all projects
-  stats       Show pre-computed stats
-  daily       Show daily summary
-  export      Export session data with privacy controls
+  sessions <optional-id>   List sessions with metadata
+  detail <session-id>      Show full detail for one session
+  transcript <session-id>  Stream/print transcript entries
+  tool-usage               Show aggregated tool usage
+  projects                 List all projects
+  stats                    Show pre-computed stats
+  daily                    Show daily summary
+  export                   Export session data with privacy controls
 
 OPTIONS
   --date YYYY-MM-DD     Filter to specific date (default: today)
@@ -26,17 +33,20 @@ OPTIONS
   --provider <name>     Data provider: claude (default), codex, openai, cursor, windsurf
   --provider-dir <path> Override provider data directory (default: ~/.<provider>)
   --privacy <profile>   Privacy profile: local (default), shareable, strict
-  --json                Output as JSON (default)
+  --format <mode>       Output mode: json (default), jsonl
+  --fields <a,b,c>      Select object fields (top-level)
+  --limit <n>           Limit array/stream length
+  --pretty              Pretty-print JSON output
+  --raw                 Disable output envelope (data only)
   --help                Show this help
 
 EXAMPLES
-  agent-optic sessions
+  agent-optic sessions --provider codex --format jsonl
+  agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai
+  agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50
+  agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
   agent-optic sessions --provider codex --date 2026-02-09
   agent-optic sessions --provider openai --date 2026-02-09
-  agent-optic sessions --from 2026-02-01 --to 2026-02-09
-  agent-optic daily --date 2026-02-09
-  agent-optic projects
-  agent-optic stats
 
 SECURITY
   Provider home directories contain highly sensitive data including API keys, source code,
@@ -45,6 +55,7 @@ SECURITY
 
 interface CliArgs {
 	command: string;
+	commandArg?: string;
 	date?: string;
 	from?: string;
 	to?: string;
@@ -52,8 +63,23 @@ interface CliArgs {
 	provider: Provider;
 	providerDir?: string;
 	privacy: PrivacyProfile;
-	json: boolean;
+	format: OutputFormat;
+	fields?: string[];
+	limit?: number;
+	pretty: boolean;
+	raw: boolean;
 	help: boolean;
+}
+
+class CliError extends Error {
+	constructor(
+		public code: string,
+		message: string,
+		public exitCode = 1,
+		public details?: Record<string, unknown>,
+	) {
+		super(message);
+	}
 }
 
 function parseArgs(args: string[]): CliArgs {
@@ -61,7 +87,9 @@ function parseArgs(args: string[]): CliArgs {
 		command: "",
 		provider: "claude",
 		privacy: "local",
-		json: true,
+		format: "json",
+		pretty: false,
+		raw: false,
 		help: false,
 	};
 
@@ -85,10 +113,26 @@ function parseArgs(args: string[]): CliArgs {
 			result.providerDir = args[++i];
 		} else if (arg === "--privacy" && args[i + 1]) {
 			result.privacy = args[++i] as PrivacyProfile;
-		} else if (arg === "--json") {
-			result.json = true;
+		} else if (arg === "--format" && args[i + 1]) {
+			result.format = args[++i] as OutputFormat;
+		} else if (arg === "--fields" && args[i + 1]) {
+			result.fields = args[++i]
+				.split(",")
+				.map((f) => f.trim())
+				.filter(Boolean);
+		} else if (arg === "--limit" && args[i + 1]) {
+			const parsed = Number.parseInt(args[++i], 10);
+			if (Number.isFinite(parsed) && parsed > 0) {
+				result.limit = parsed;
+			}
+		} else if (arg === "--pretty") {
+			result.pretty = true;
+		} else if (arg === "--raw") {
+			result.raw = true;
 		} else if (!arg.startsWith("-") && !result.command) {
 			result.command = arg;
+		} else if (!arg.startsWith("-") && !result.commandArg) {
+			result.commandArg = arg;
 		}
 
 		i++;
@@ -97,8 +141,66 @@ function parseArgs(args: string[]): CliArgs {
 	return result;
 }
 
-function output(data: unknown): void {
-	console.log(JSON.stringify(data, mapReplacer, 2));
+function applyFieldSelection(data: unknown, fields?: string[]): unknown {
+	if (!fields || fields.length === 0) return data;
+
+	if (Array.isArray(data)) {
+		return data.map((item) => applyFieldSelection(item, fields));
+	}
+
+	if (!data || typeof data !== "object") return data;
+	const obj = data as Record<string, unknown>;
+	const selected: Record<string, unknown> = {};
+	for (const field of fields) {
+		if (field in obj) selected[field] = obj[field];
+	}
+	return selected;
+}
+
+function applyLimit(data: unknown, limit?: number): unknown {
+	if (!limit) return data;
+	if (Array.isArray(data)) return data.slice(0, limit);
+	return data;
+}
+
+function writeOutput(
+	command: string,
+	provider: Provider,
+	data: unknown,
+	args: CliArgs,
+): void {
+	const transformed = applyLimit(applyFieldSelection(data, args.fields), args.limit);
+	const generatedAt = new Date().toISOString();
+
+	if (args.format === "json") {
+		const payload = args.raw
+			? transformed
+			: {
+				schemaVersion: SCHEMA_VERSION,
+				command,
+				provider,
+				generatedAt,
+				data: transformed,
+			};
+		console.log(
+			JSON.stringify(payload, mapReplacer, args.pretty ? 2 : 0),
+		);
+		return;
+	}
+
+	const rows = Array.isArray(transformed) ? transformed : [transformed];
+	for (const row of rows) {
+		const payload = args.raw
+			? row
+			: {
+				schemaVersion: SCHEMA_VERSION,
+				command,
+				provider,
+				generatedAt,
+				data: row,
+			};
+		console.log(JSON.stringify(payload, mapReplacer));
+	}
 }
 
 /** JSON.stringify replacer that converts Maps to plain objects. */
@@ -109,25 +211,53 @@ function mapReplacer(_key: string, value: unknown): unknown {
 	return value;
 }
 
-async function main() {
-	const args = parseArgs(process.argv.slice(2));
+function printError(error: CliError, args?: CliArgs): void {
+	const format = args?.format ?? "json";
+	const payload = {
+		schemaVersion: SCHEMA_VERSION,
+		error: {
+			code: error.code,
+			message: error.message,
+			details: error.details,
+		},
+	};
+	const text =
+		format === "json" && args?.pretty
+			? JSON.stringify(payload, null, 2)
+			: JSON.stringify(payload);
+	console.error(text);
+}
 
+function assertValidArgs(args: CliArgs): void {
+	if (!["local", "shareable", "strict"].includes(args.privacy)) {
+		throw new CliError(
+			"INVALID_PRIVACY_PROFILE",
+			`Invalid privacy profile: ${args.privacy}. Use: local, shareable, strict`,
+		);
+	}
+
+	if (!isProvider(args.provider)) {
+		throw new CliError(
+			"INVALID_PROVIDER",
+			`Invalid provider: ${args.provider}. Use: claude, codex, openai, cursor, windsurf`,
+		);
+	}
+
+	if (!["json", "jsonl"].includes(args.format)) {
+		throw new CliError(
+			"INVALID_FORMAT",
+			`Invalid format: ${args.format}. Use: json, jsonl`,
+		);
+	}
+}
+
+async function run(args: CliArgs): Promise<void> {
 	if (args.help || !args.command) {
 		console.log(HELP);
 		process.exit(args.help ? 0 : 1);
 	}
 
-	if (!["local", "shareable", "strict"].includes(args.privacy)) {
-		console.error(`Invalid privacy profile: ${args.privacy}. Use: local, shareable, strict`);
-		process.exit(1);
-	}
-
-	if (!isProvider(args.provider)) {
-		console.error(
-			`Invalid provider: ${args.provider}. Use: claude, codex, openai, cursor, windsurf`,
-		);
-		process.exit(1);
-	}
+	assertValidArgs(args);
 
 	const providerDir = args.providerDir ?? defaultProviderDir(args.provider);
 	const ch = createHistory({
@@ -145,32 +275,97 @@ async function main() {
 
 	switch (args.command) {
 		case "sessions": {
-			const sessions = await ch.sessions.listWithMeta(filter);
-			output(sessions);
-			break;
+			const sessionsFilter =
+				args.commandArg && !args.date && !args.from && !args.to
+					? { ...filter, from: "2000-01-01", to: "2099-12-31" }
+					: filter;
+			let sessions = await ch.sessions.listWithMeta(sessionsFilter);
+			if (args.commandArg) {
+				sessions = sessions.filter((s) => s.sessionId === args.commandArg);
+			}
+			writeOutput("sessions", args.provider, sessions, args);
+			return;
+		}
+
+		case "detail": {
+			if (!args.commandArg) {
+				throw new CliError(
+					"MISSING_ARGUMENT",
+					"Missing session ID. Usage: agent-optic detail <session-id>",
+				);
+			}
+			const detail = await ch.sessions.detail(args.commandArg, args.project);
+			writeOutput("detail", args.provider, detail, args);
+			return;
+		}
+
+		case "transcript": {
+			if (!args.commandArg) {
+				throw new CliError(
+					"MISSING_ARGUMENT",
+					"Missing session ID. Usage: agent-optic transcript <session-id>",
+				);
+			}
+
+			if (args.format === "jsonl") {
+				const generatedAt = new Date().toISOString();
+				let count = 0;
+				for await (const entry of ch.sessions.transcript(args.commandArg, args.project)) {
+					if (args.limit && count >= args.limit) break;
+					const transformed = applyFieldSelection(entry, args.fields);
+					const payload = args.raw
+						? transformed
+						: {
+							schemaVersion: SCHEMA_VERSION,
+							command: "transcript",
+							provider: args.provider,
+							generatedAt,
+							data: transformed,
+						};
+					console.log(JSON.stringify(payload, mapReplacer));
+					count++;
+				}
+				return;
+			}
+
+			const entries: unknown[] = [];
+			for await (const entry of ch.sessions.transcript(args.commandArg, args.project)) {
+				entries.push(entry);
+				if (args.limit && entries.length >= args.limit) break;
+			}
+			writeOutput("transcript", args.provider, entries, args);
+			return;
+		}
+
+		case "tool-usage": {
+			const usage = await ch.aggregate.toolUsage(filter);
+			writeOutput("tool-usage", args.provider, usage, args);
+			return;
 		}
 
 		case "projects": {
 			const projects = await ch.projects.list();
-			output(projects);
-			break;
+			writeOutput("projects", args.provider, projects, args);
+			return;
 		}
 
 		case "stats": {
 			const stats = await ch.stats.get();
 			if (!stats) {
-				console.error(`No stats cache found at ${providerDir}/stats-cache.json`);
-				process.exit(1);
+				throw new CliError(
+					"STATS_NOT_FOUND",
+					`No stats cache found at ${providerDir}/stats-cache.json`,
+				);
 			}
-			output(stats);
-			break;
+			writeOutput("stats", args.provider, stats, args);
+			return;
 		}
 
 		case "daily": {
 			const date = args.date ?? today();
 			const summary = await ch.aggregate.daily(date);
-			output(summary);
-			break;
+			writeOutput("daily", args.provider, summary, args);
+			return;
 		}
 
 		case "export": {
@@ -178,18 +373,35 @@ async function main() {
 			const from = args.from ?? date ?? today();
 			const to = args.to ?? date ?? today();
 			const summaries = await ch.aggregate.dailyRange(from, to);
-			output(summaries);
-			break;
+			writeOutput("export", args.provider, summaries, args);
+			return;
 		}
 
 		default:
-			console.error(`Unknown command: ${args.command}\n`);
-			console.log(HELP);
-			process.exit(1);
+			throw new CliError(
+				"UNKNOWN_COMMAND",
+				`Unknown command: ${args.command}`,
+				2,
+			);
 	}
 }
 
-main().catch((err) => {
-	console.error("Error:", err.message);
-	process.exit(1);
-});
+async function main() {
+	const args = parseArgs(process.argv.slice(2));
+	try {
+		await run(args);
+	} catch (err) {
+		if (err instanceof CliError) {
+			printError(err, args);
+			process.exit(err.exitCode);
+		}
+		const fallback = new CliError(
+			"INTERNAL_ERROR",
+			err instanceof Error ? err.message : "Unknown error",
+		);
+		printError(fallback, args);
+		process.exit(fallback.exitCode);
+	}
+}
+
+main();
