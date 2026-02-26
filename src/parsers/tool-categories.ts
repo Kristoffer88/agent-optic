@@ -32,6 +32,15 @@ const TOOL_CATEGORY_MAP: Record<string, ToolCategory> = {
 	ExitPlanMode: "task",
 	AskUserQuestion: "task",
 	Skill: "task",
+
+	// Codex tools
+	exec_command: "shell",
+	shell_command: "shell",
+	write_stdin: "shell",
+	apply_patch: "file_write",
+	update_plan: "task",
+	request_user_input: "task",
+	view_image: "file_read",
 };
 
 export function categorizeToolName(name: string): ToolCategory {

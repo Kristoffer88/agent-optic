@@ -1,4 +1,5 @@
 import type { PrivacyConfig } from "../types/privacy.js";
+import type { Provider } from "../types/provider.js";
 import type { ToolUsageReport, SessionListFilter } from "../types/aggregations.js";
 import type { ToolCategory, ToolCallSummary } from "../types/session.js";
 import { readHistory } from "../readers/history-reader.js";
@@ -7,13 +8,17 @@ import { resolveDateRange } from "../utils/dates.js";
 
 /** Build a tool usage report from session data. */
 export async function buildToolUsageReport(
+	provider: Provider,
 	filter: SessionListFilter,
 	historyFile: string,
-	projectsDir: string,
+	paths: { projectsDir: string; sessionsDir: string },
 	privacy: PrivacyConfig,
 ): Promise<ToolUsageReport> {
 	const { from, to } = resolveDateRange(filter);
-	const sessions = await readHistory(historyFile, from, to, privacy);
+	const sessions = await readHistory(historyFile, from, to, privacy, {
+		provider,
+		sessionsDir: paths.sessionsDir,
+	});
 
 	const byTool = new Map<string, number>();
 	const byCategory = new Map<ToolCategory, number>();
@@ -23,7 +28,7 @@ export async function buildToolUsageReport(
 
 	for (const session of sessions) {
 		if (session.prompts.length < 2) continue; // skip trivial sessions
-		const detail = await parseSessionDetail(session, projectsDir, privacy);
+		const detail = await parseSessionDetail(provider, session, paths, privacy);
 
 		for (const tc of detail.toolCalls) {
 			byTool.set(tc.name, (byTool.get(tc.name) ?? 0) + 1);

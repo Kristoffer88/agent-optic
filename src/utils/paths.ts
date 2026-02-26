@@ -21,6 +21,8 @@ export interface ProviderPaths {
 	base: string;
 	historyFile: string;
 	projectsDir: string;
+	sessionsDir: string;
+	globalStateFile: string;
 	tasksDir: string;
 	plansDir: string;
 	todosDir: string;
@@ -39,6 +41,8 @@ export function providerPaths(config?: {
 		base,
 		historyFile: join(base, "history.jsonl"),
 		projectsDir: join(base, "projects"),
+		sessionsDir: join(base, "sessions"),
+		globalStateFile: join(base, ".codex-global-state.json"),
 		tasksDir: join(base, "tasks"),
 		plansDir: join(base, "plans"),
 		todosDir: join(base, "todos"),

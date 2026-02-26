@@ -196,12 +196,14 @@ const cost = estimateCost(withMeta[0]); // USD
 
 ```typescript
 const ch = createHistory({
-  provider: "claude",                // "claude" | "codex" | "cursor" | "windsurf"
+  provider: "claude",                // "claude" | "codex" | "openai" | "cursor" | "windsurf"
   providerDir: "~/.claude",          // default: provider-specific home directory
   privacy: "local",                  // "local" | "shareable" | "strict" | Partial<PrivacyConfig>
   cache: true,                       // default: true
 });
 ```
+
+`openai` is currently an alias of Codex-format local history and defaults to `~/.codex`.
 
 `createClaudeHistory()` is still exported for backward compatibility and behaves like `createHistory({ provider: "claude" })`.
 
@@ -302,6 +304,7 @@ bunx agent-optic sessions --from 2026-02-01 --to 2026-02-09
 
 # Use another provider
 bunx agent-optic sessions --provider codex --date 2026-02-09
+bunx agent-optic sessions --provider openai --date 2026-02-09
 
 # Daily summary
 bunx agent-optic daily --date 2026-02-09

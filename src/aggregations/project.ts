@@ -1,4 +1,5 @@
 import type { PrivacyConfig } from "../types/privacy.js";
+import type { Provider } from "../types/provider.js";
 import type { ProjectSummary, SessionListFilter } from "../types/aggregations.js";
 import type { SessionInfo, ToolCallSummary } from "../types/session.js";
 import { readHistory } from "../readers/history-reader.js";
@@ -9,13 +10,17 @@ import { estimateHours } from "./time.js";
 
 /** Build per-project summaries from session data. */
 export async function buildProjectSummaries(
+	provider: Provider,
 	filter: SessionListFilter,
 	historyFile: string,
-	projectsDir: string,
+	paths: { projectsDir: string; sessionsDir: string },
 	privacy: PrivacyConfig,
 ): Promise<ProjectSummary[]> {
 	const { from, to } = resolveDateRange(filter);
-	const sessions = await readHistory(historyFile, from, to, privacy);
+	const sessions = await readHistory(historyFile, from, to, privacy, {
+		provider,
+		sessionsDir: paths.sessionsDir,
+	});
 
 	// Group by project
 	const byProject = new Map<string, SessionInfo[]>();
@@ -41,7 +46,7 @@ export async function buildProjectSummaries(
 		// Parse detailed sessions for rich data
 		for (const session of projectSessions) {
 			if (session.prompts.length >= 3) {
-				const detail = await parseSessionDetail(session, projectsDir, privacy);
+				const detail = await parseSessionDetail(provider, session, paths, privacy);
 				allToolCalls.push(...detail.toolCalls);
 				allFiles.push(...detail.filesReferenced);
 				if (detail.gitBranch) allBranches.push(detail.gitBranch);

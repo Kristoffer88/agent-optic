@@ -5,6 +5,7 @@ import type { Provider } from "../types/provider.js";
 const PROVIDER_HOME_DIR: Record<Provider, string> = {
 	claude: ".claude",
 	codex: ".codex",
+	openai: ".codex",
 	cursor: ".cursor",
 	windsurf: ".windsurf",
 };
@@ -21,4 +22,9 @@ export function providerHomeDirName(provider: Provider): string {
 
 export function isProvider(value: string): value is Provider {
 	return value in PROVIDER_HOME_DIR;
+}
+
+export function canonicalProvider(provider: Provider): Exclude<Provider, "openai"> {
+	if (provider === "openai") return "codex";
+	return provider;
 }

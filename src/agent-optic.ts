@@ -16,6 +16,7 @@ import type {
 
 import { providerPaths } from "./utils/paths.js";
 import { resolveDateRange } from "./utils/dates.js";
+import { canonicalProvider } from "./utils/providers.js";
 import { resolvePrivacyConfig } from "./privacy/config.js";
 import { setPricing, type ModelPricing } from "./pricing.js";
 
@@ -54,9 +55,9 @@ export interface History {
 		/** Medium: also peeks session files for branch/model/tokens */
 		listWithMeta(filter?: SessionListFilter): Promise<SessionMeta[]>;
 		/** Full: parses entire session JSONL */
-		detail(sessionId: string, projectPath: string): Promise<SessionDetail>;
+		detail(sessionId: string, projectPath?: string): Promise<SessionDetail>;
 		/** Streaming: yields transcript entries one at a time */
-		transcript(sessionId: string, projectPath: string): AsyncGenerator<TranscriptEntry>;
+		transcript(sessionId: string, projectPath?: string): AsyncGenerator<TranscriptEntry>;
 		/** Count sessions matching filter */
 		count(filter?: SessionListFilter): Promise<number>;
 	};
@@ -91,8 +92,10 @@ export interface History {
 
 /** Create a provider-aware History instance for reading session data. */
 export function createHistory(config?: HistoryConfig): History {
+	const requestedProvider = config?.provider ?? "claude";
+	const provider = canonicalProvider(requestedProvider);
 	const paths = providerPaths({
-		provider: config?.provider,
+		provider: requestedProvider,
 		providerDir: config?.providerDir,
 	});
 
@@ -108,6 +111,7 @@ export function createHistory(config?: HistoryConfig): History {
 	const dailyPaths = {
 		historyFile: paths.historyFile,
 		projectsDir: paths.projectsDir,
+		sessionsDir: paths.sessionsDir,
 		tasksDir: paths.tasksDir,
 		plansDir: paths.plansDir,
 		todosDir: paths.todosDir,
@@ -117,7 +121,10 @@ export function createHistory(config?: HistoryConfig): History {
 		sessions: {
 			async list(filter?: SessionListFilter): Promise<SessionInfo[]> {
 				const { from, to } = resolveDateRange(filter);
-				let sessions = await readHistory(paths.historyFile, from, to, privacy);
+				let sessions = await readHistory(paths.historyFile, from, to, privacy, {
+					provider,
+					sessionsDir: paths.sessionsDir,
+				});
 
 				if (filter?.project) {
 					const f = filter.project.toLowerCase();
@@ -129,7 +136,10 @@ export function createHistory(config?: HistoryConfig): History {
 
 			async listWithMeta(filter?: SessionListFilter): Promise<SessionMeta[]> {
 				const { from, to } = resolveDateRange(filter);
-				let sessions = await readHistory(paths.historyFile, from, to, privacy);
+				let sessions = await readHistory(paths.historyFile, from, to, privacy, {
+					provider,
+					sessionsDir: paths.sessionsDir,
+				});
 
 				if (filter?.project) {
 					const f = filter.project.toLowerCase();
@@ -137,32 +147,73 @@ export function createHistory(config?: HistoryConfig): History {
 				}
 
 				return Promise.all(
-					sessions.map((s) => peekSession(s, paths.projectsDir, privacy)),
+					sessions.map((s) =>
+						peekSession(provider, s, {
+							projectsDir: paths.projectsDir,
+							sessionsDir: paths.sessionsDir,
+						}, privacy),
+					),
 				);
 			},
 
-			async detail(sessionId: string, projectPath: string): Promise<SessionDetail> {
-				const session: SessionInfo = {
-					sessionId,
-					project: projectPath,
-					projectName: projectPath.split("/").pop() || projectPath,
-					prompts: [],
-					promptTimestamps: [],
-					timeRange: { start: 0, end: 0 },
-				};
-				return parseSessionDetail(session, paths.projectsDir, privacy);
+			async detail(sessionId: string, projectPath?: string): Promise<SessionDetail> {
+				let session: SessionInfo | undefined;
+
+				if (!projectPath || provider === "codex") {
+					const all = await readHistory(
+						paths.historyFile,
+						"2000-01-01",
+						"2099-12-31",
+						privacy,
+						{
+							provider,
+							sessionsDir: paths.sessionsDir,
+						},
+					);
+					session = all.find((s) => s.sessionId === sessionId);
+				}
+
+				if (!session) {
+					const effectiveProjectPath = projectPath ?? `(unknown)/${sessionId}`;
+					session = {
+						sessionId,
+						project: effectiveProjectPath,
+						projectName:
+							effectiveProjectPath.split("/").pop() || effectiveProjectPath,
+						prompts: [],
+						promptTimestamps: [],
+						timeRange: { start: 0, end: 0 },
+					};
+				}
+
+				return parseSessionDetail(provider, session, {
+					projectsDir: paths.projectsDir,
+					sessionsDir: paths.sessionsDir,
+				}, privacy);
 			},
 
 			async *transcript(
 				sessionId: string,
-				projectPath: string,
+				projectPath?: string,
 			): AsyncGenerator<TranscriptEntry> {
-				yield* streamTranscript(sessionId, projectPath, paths.projectsDir, privacy);
+				yield* streamTranscript(
+					provider,
+					sessionId,
+					projectPath ?? `(unknown)/${sessionId}`,
+					{
+						projectsDir: paths.projectsDir,
+						sessionsDir: paths.sessionsDir,
+					},
+					privacy,
+				);
 			},
 
 			async count(filter?: SessionListFilter): Promise<number> {
 				const { from, to } = resolveDateRange(filter);
-				const sessions = await readHistory(paths.historyFile, from, to, privacy);
+				const sessions = await readHistory(paths.historyFile, from, to, privacy, {
+					provider,
+					sessionsDir: paths.sessionsDir,
+				});
 				if (filter?.project) {
 					const f = filter.project.toLowerCase();
 					return sessions.filter((s) => s.projectName.toLowerCase().includes(f)).length;
@@ -220,27 +271,29 @@ export function createHistory(config?: HistoryConfig): History {
 
 		aggregate: {
 			async daily(date: string): Promise<DailySummary> {
-				return buildDailySummary(date, dailyPaths, privacy);
+				return buildDailySummary(provider, date, dailyPaths, privacy);
 			},
 
 			async dailyRange(from: string, to: string): Promise<DailySummary[]> {
-				return buildDailyRange(from, to, dailyPaths, privacy);
+				return buildDailyRange(provider, from, to, dailyPaths, privacy);
 			},
 
 			async byProject(filter?: SessionListFilter): Promise<ProjectSummary[]> {
 				return buildProjectSummaries(
+					provider,
 					filter ?? {},
 					paths.historyFile,
-					paths.projectsDir,
+					{ projectsDir: paths.projectsDir, sessionsDir: paths.sessionsDir },
 					privacy,
 				);
 			},
 
 			async toolUsage(filter?: SessionListFilter): Promise<ToolUsageReport> {
 				return buildToolUsageReport(
+					provider,
 					filter ?? {},
 					paths.historyFile,
-					paths.projectsDir,
+					{ projectsDir: paths.projectsDir, sessionsDir: paths.sessionsDir },
 					privacy,
 				);
 			},

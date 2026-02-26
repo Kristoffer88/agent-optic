@@ -23,7 +23,7 @@ OPTIONS
   --from YYYY-MM-DD     Start of date range
   --to YYYY-MM-DD       End of date range
   --project <name>      Filter by project name
-  --provider <name>     Data provider: claude (default), codex, cursor, windsurf
+  --provider <name>     Data provider: claude (default), codex, openai, cursor, windsurf
   --provider-dir <path> Override provider data directory (default: ~/.<provider>)
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --json                Output as JSON (default)
@@ -32,6 +32,7 @@ OPTIONS
 EXAMPLES
   agent-optic sessions
   agent-optic sessions --provider codex --date 2026-02-09
+  agent-optic sessions --provider openai --date 2026-02-09
   agent-optic sessions --from 2026-02-01 --to 2026-02-09
   agent-optic daily --date 2026-02-09
   agent-optic projects
@@ -123,7 +124,7 @@ async function main() {
 
 	if (!isProvider(args.provider)) {
 		console.error(
-			`Invalid provider: ${args.provider}. Use: claude, codex, cursor, windsurf`,
+			`Invalid provider: ${args.provider}. Use: claude, codex, openai, cursor, windsurf`,
 		);
 		process.exit(1);
 	}
