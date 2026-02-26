@@ -17,7 +17,7 @@ function isInDateRange(fileDate: Date, from: string, to: string): boolean {
 	return dateStr >= from && dateStr <= to;
 }
 
-/** Read tasks from ~/.claude/tasks/{sessionDir}/*.json */
+/** Read tasks from provider/tasks/{sessionDir}/*.json */
 export async function readTasks(
 	tasksDir: string,
 	from: string,
@@ -76,7 +76,7 @@ export async function readTasks(
 	return tasks;
 }
 
-/** Read todos from ~/.claude/todos/*.json */
+/** Read todos from provider/todos/*.json */
 export async function readTodos(
 	todosDir: string,
 	from: string,

@@ -2,14 +2,15 @@
 
 ## Overview
 
-`claude-optic` — Zero-dependency, local-first TypeScript library for reading Claude Code session data from `~/.claude/`.
+`agent-optic` — Zero-dependency, local-first TypeScript library for reading assistant session data from provider home directories.
 
 ## Architecture
 
 ```
 src/
   index.ts              # Public API exports
-  claude-optic.ts       # Main factory: createClaudeHistory()
+  agent-optic.ts        # Main factory: createHistory()
+  claude-optic.ts       # Backward-compatible Claude aliases
   types/                # All type definitions (one file per domain)
   readers/              # File readers (history.jsonl, session JSONL, tasks, plans, projects, stats)
   parsers/              # Session transcript parsing, tool categorization, content block extraction

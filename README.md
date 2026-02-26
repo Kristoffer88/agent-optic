@@ -1,15 +1,15 @@
-# claude-optic
+# agent-optic
 
-> Reads `~/.claude/` and returns structured JSON — sessions, costs, timesheets, work patterns. Pipe to `claude` or any LLM.
+> Reads local assistant history directories and returns structured JSON — sessions, costs, timesheets, work patterns.
 
-Zero-dependency, local-first TypeScript library for reading [Claude Code](https://docs.anthropic.com/en/docs/claude-code) session data from `~/.claude/`.
+Zero-dependency, local-first TypeScript library for reading session data from provider directories such as `~/.claude/`, `~/.codex/`, `~/.cursor/`, and `~/.windsurf/`.
 
-> **Security Warning**: `~/.claude/` contains highly sensitive data — API keys, source code, credentials, and personal information have been found in plaintext in session files. This library is designed with privacy as the primary concern. See [SECURITY.md](./SECURITY.md).
+> **Security Warning**: Provider home directories contain highly sensitive data — API keys, source code, credentials, and personal information may be present in plaintext session files. This library is designed with privacy as the primary concern. See [SECURITY.md](./SECURITY.md).
 
 ## Try it
 
 ```bash
-bunx claude-optic sessions
+bunx agent-optic sessions
 ```
 
 ## Features
@@ -23,7 +23,7 @@ bunx claude-optic sessions
 ## Install
 
 ```bash
-bun add claude-optic
+bun add agent-optic
 ```
 
 ## Examples
@@ -78,7 +78,7 @@ Tue   2026-02-11  claude-optic                       3.5          6         32
 
 ### Model Costs
 
-Compare token usage and costs across Claude models.
+Compare token usage and costs across model families.
 
 ```bash
 bun examples/model-costs.ts
@@ -161,9 +161,9 @@ cat events.json | bun examples/pipe-match.ts
 ## Quick Start
 
 ```typescript
-import { createClaudeHistory } from "claude-optic";
+import { createHistory } from "agent-optic";
 
-const ch = createClaudeHistory();
+const ch = createHistory({ provider: "claude" });
 
 // List today's sessions (fast — reads only history.jsonl)
 const sessions = await ch.sessions.list();
@@ -186,21 +186,24 @@ const daily = await ch.aggregate.daily("2026-02-09");
 const projects = await ch.aggregate.byProject({ from: "2026-02-01", to: "2026-02-09" });
 
 // Estimate cost of a session
-import { estimateCost } from "claude-optic";
+import { estimateCost } from "agent-optic";
 const cost = estimateCost(withMeta[0]); // USD
 ```
 
 ## API
 
-### `createClaudeHistory(config?)`
+### `createHistory(config?)`
 
 ```typescript
-const ch = createClaudeHistory({
-  claudeDir: "~/.claude",           // default: ~/.claude
+const ch = createHistory({
+  provider: "claude",                // "claude" | "codex" | "cursor" | "windsurf"
+  providerDir: "~/.claude",          // default: provider-specific home directory
   privacy: "local",                  // "local" | "shareable" | "strict" | Partial<PrivacyConfig>
   cache: true,                       // default: true
 });
 ```
+
+`createClaudeHistory()` is still exported for backward compatibility and behaves like `createHistory({ provider: "claude" })`.
 
 ### Sessions
 
@@ -238,7 +241,7 @@ ch.aggregate.estimateHours(sessions)                       // number (gap-capped
 ### Cost Estimation
 
 ```typescript
-import { estimateCost, getModelPricing, MODEL_PRICING } from "claude-optic";
+import { estimateCost, getModelPricing, MODEL_PRICING } from "agent-optic";
 
 // Estimate cost for a session (requires SessionMeta — use listWithMeta)
 const session = (await ch.sessions.listWithMeta())[0];
@@ -271,10 +274,11 @@ const pricing = getModelPricing("claude-opus-4-6");
 
 ```typescript
 // Use a built-in profile
-const ch = createClaudeHistory({ privacy: "strict" });
+const ch = createHistory({ provider: "claude", privacy: "strict" });
 
 // Or customize
-const ch = createClaudeHistory({
+const ch = createHistory({
+  provider: "claude",
   privacy: {
     redactPrompts: false,
     stripToolResults: true,
@@ -288,25 +292,28 @@ const ch = createClaudeHistory({
 
 ```bash
 # List today's sessions
-bunx claude-optic sessions
+bunx agent-optic sessions
 
 # Sessions for a specific date
-bunx claude-optic sessions --date 2026-02-09
+bunx agent-optic sessions --date 2026-02-09
 
 # Date range
-bunx claude-optic sessions --from 2026-02-01 --to 2026-02-09
+bunx agent-optic sessions --from 2026-02-01 --to 2026-02-09
+
+# Use another provider
+bunx agent-optic sessions --provider codex --date 2026-02-09
 
 # Daily summary
-bunx claude-optic daily --date 2026-02-09
+bunx agent-optic daily --date 2026-02-09
 
 # List projects
-bunx claude-optic projects
+bunx agent-optic projects
 
 # Stats
-bunx claude-optic stats
+bunx agent-optic stats
 
 # Export with strict privacy
-bunx claude-optic export --from 2026-02-01 --privacy strict
+bunx agent-optic export --from 2026-02-01 --privacy strict
 ```
 
 All commands output JSON.
@@ -315,7 +322,8 @@ All commands output JSON.
 
 ```
 src/
-  claude-optic.ts     # Main factory: createClaudeHistory()
+  agent-optic.ts      # Main factory: createHistory()
+  claude-optic.ts     # Backward-compatible Claude aliases
   pricing.ts            # Model pricing data and cost estimation
   types/                # Type definitions (one file per domain)
   readers/              # File readers (history, session, tasks, plans, projects, stats)

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-/** List all skill names from ~/.claude/skills/ */
+/** List all skill names from provider/skills/ */
 export async function readSkills(skillsDir: string): Promise<string[]> {
 	const glob = new Bun.Glob("*/SKILL.md");
 	const skills: string[] = [];

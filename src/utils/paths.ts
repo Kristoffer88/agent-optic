@@ -1,5 +1,6 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
+import type { Provider } from "../types/provider.js";
+import { DEFAULT_PROVIDER, defaultProviderDir } from "./providers.js";
 
 /** Encode a project path for filesystem storage (/ → -). */
 export function encodeProjectPath(projectPath: string): string {
@@ -16,9 +17,24 @@ export function projectName(projectPath: string): string {
 	return projectPath.split("/").pop() || projectPath;
 }
 
-/** Build all standard paths relative to a claude directory. */
-export function claudePaths(claudeDir?: string) {
-	const base = claudeDir ?? join(homedir(), ".claude");
+export interface ProviderPaths {
+	base: string;
+	historyFile: string;
+	projectsDir: string;
+	tasksDir: string;
+	plansDir: string;
+	todosDir: string;
+	skillsDir: string;
+	statsCache: string;
+}
+
+/** Build all standard paths relative to a provider directory. */
+export function providerPaths(config?: {
+	provider?: Provider;
+	providerDir?: string;
+}): ProviderPaths {
+	const provider = config?.provider ?? DEFAULT_PROVIDER;
+	const base = config?.providerDir ?? defaultProviderDir(provider);
 	return {
 		base,
 		historyFile: join(base, "history.jsonl"),
@@ -29,4 +45,9 @@ export function claudePaths(claudeDir?: string) {
 		skillsDir: join(base, "skills"),
 		statsCache: join(base, "stats-cache.json"),
 	};
+}
+
+/** Backward-compatible alias for Claude-specific default paths. */
+export function claudePaths(claudeDir?: string): ProviderPaths {
+	return providerPaths({ provider: "claude", providerDir: claudeDir });
 }

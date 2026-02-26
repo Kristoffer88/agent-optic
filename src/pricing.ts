@@ -8,7 +8,7 @@ export interface ModelPricing {
 	cacheRead: number;
 }
 
-/** Current Claude model pricing (USD per million tokens). */
+/** Default model pricing (USD per million tokens). */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
 	// Opus 4.5+ ($5/$25)
 	"claude-opus-4-6": { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },

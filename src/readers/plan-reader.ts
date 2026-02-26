@@ -10,7 +10,7 @@ function isInDateRange(fileDate: Date, from: string, to: string): boolean {
 	return dateStr >= from && dateStr <= to;
 }
 
-/** Read plans from ~/.claude/plans/*.md */
+/** Read plans from provider/plans/*.md */
 export async function readPlans(
 	plansDir: string,
 	from: string,

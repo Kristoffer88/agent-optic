@@ -1,13 +1,15 @@
 #!/usr/bin/env bun
 
-import { createClaudeHistory } from "../claude-optic.js";
+import { createHistory } from "../agent-optic.js";
 import type { PrivacyProfile } from "../types/privacy.js";
+import type { Provider } from "../types/provider.js";
 import { today } from "../utils/dates.js";
+import { defaultProviderDir, isProvider } from "../utils/providers.js";
 
-const HELP = `claude-optic — Read Claude Code session data from ~/.claude/
+const HELP = `agent-optic — Read AI assistant session data from local provider directories
 
 USAGE
-  claude-optic <command> [options]
+  agent-optic <command> [options]
 
 COMMANDS
   sessions    List sessions (default: today)
@@ -21,20 +23,22 @@ OPTIONS
   --from YYYY-MM-DD     Start of date range
   --to YYYY-MM-DD       End of date range
   --project <name>      Filter by project name
+  --provider <name>     Data provider: claude (default), codex, cursor, windsurf
+  --provider-dir <path> Override provider data directory (default: ~/.<provider>)
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --json                Output as JSON (default)
   --help                Show this help
 
 EXAMPLES
-  claude-optic sessions
-  claude-optic sessions --date 2026-02-09
-  claude-optic sessions --from 2026-02-01 --to 2026-02-09
-  claude-optic daily --date 2026-02-09
-  claude-optic projects
-  claude-optic stats
+  agent-optic sessions
+  agent-optic sessions --provider codex --date 2026-02-09
+  agent-optic sessions --from 2026-02-01 --to 2026-02-09
+  agent-optic daily --date 2026-02-09
+  agent-optic projects
+  agent-optic stats
 
 SECURITY
-  ~/.claude/ contains highly sensitive data including API keys, source code,
+  Provider home directories contain highly sensitive data including API keys, source code,
   and personal information. See SECURITY.md for details.
 `;
 
@@ -44,6 +48,8 @@ interface CliArgs {
 	from?: string;
 	to?: string;
 	project?: string;
+	provider: Provider;
+	providerDir?: string;
 	privacy: PrivacyProfile;
 	json: boolean;
 	help: boolean;
@@ -52,6 +58,7 @@ interface CliArgs {
 function parseArgs(args: string[]): CliArgs {
 	const result: CliArgs = {
 		command: "",
+		provider: "claude",
 		privacy: "local",
 		json: true,
 		help: false,
@@ -71,6 +78,10 @@ function parseArgs(args: string[]): CliArgs {
 			result.to = args[++i];
 		} else if (arg === "--project" && args[i + 1]) {
 			result.project = args[++i];
+		} else if (arg === "--provider" && args[i + 1]) {
+			result.provider = args[++i] as Provider;
+		} else if (arg === "--provider-dir" && args[i + 1]) {
+			result.providerDir = args[++i];
 		} else if (arg === "--privacy" && args[i + 1]) {
 			result.privacy = args[++i] as PrivacyProfile;
 		} else if (arg === "--json") {
@@ -110,7 +121,19 @@ async function main() {
 		process.exit(1);
 	}
 
-	const ch = createClaudeHistory({ privacy: args.privacy });
+	if (!isProvider(args.provider)) {
+		console.error(
+			`Invalid provider: ${args.provider}. Use: claude, codex, cursor, windsurf`,
+		);
+		process.exit(1);
+	}
+
+	const providerDir = args.providerDir ?? defaultProviderDir(args.provider);
+	const ch = createHistory({
+		provider: args.provider,
+		providerDir,
+		privacy: args.privacy,
+	});
 
 	const filter = {
 		date: args.date,
@@ -135,7 +158,7 @@ async function main() {
 		case "stats": {
 			const stats = await ch.stats.get();
 			if (!stats) {
-				console.error("No stats cache found at ~/.claude/stats-cache.json");
+				console.error(`No stats cache found at ${providerDir}/stats-cache.json`);
 				process.exit(1);
 			}
 			output(stats);

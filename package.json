@@ -1,18 +1,23 @@
 {
-	"name": "claude-optic",
+	"name": "agent-optic",
 	"version": "0.2.0",
-	"description": "Zero-dependency, local-first framework for reading Claude Code session data from ~/.claude/",
+	"description": "Zero-dependency, local-first framework for reading AI assistant session data from provider home directories",
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts"
 	},
 	"bin": {
+		"agent-optic": "./src/cli/index.ts",
 		"claude-optic": "./src/cli/index.ts"
 	},
 	"files": ["src", "examples"],
 	"keywords": [
+		"ai",
+		"assistant",
 		"claude",
-		"claude-code",
+		"codex",
+		"cursor",
+		"windsurf",
 		"session-history",
 		"developer-tools",
 		"productivity"
@@ -21,7 +26,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Kristoffer88/claude-optic"
+		"url": "https://github.com/Kristoffer88/agent-optic"
 	},
 	"scripts": {
 		"knip": "knip"

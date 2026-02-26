@@ -5,7 +5,7 @@ import { decodeProjectPath } from "../utils/paths.js";
 import type { PrivacyConfig } from "../types/privacy.js";
 import { isProjectExcluded } from "../privacy/redact.js";
 
-/** List all projects from ~/.claude/projects/ */
+/** List all projects from provider/projects/ */
 export async function readProjects(
 	projectsDir: string,
 	privacy: PrivacyConfig,

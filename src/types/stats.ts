@@ -1,4 +1,4 @@
-/** Pre-computed stats from ~/.claude/stats-cache.json */
+/** Pre-computed stats from provider/stats-cache.json */
 export interface StatsCache {
 	version: number;
 	lastComputedDate: string;

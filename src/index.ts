@@ -1,6 +1,10 @@
 // Main factory
-export { createClaudeHistory } from "./claude-optic.js";
-export type { ClaudeHistory, ClaudeHistoryConfig } from "./claude-optic.js";
+export { createHistory, createClaudeHistory } from "./agent-optic.js";
+export type { History, HistoryConfig, ClaudeHistory, ClaudeHistoryConfig } from "./agent-optic.js";
+
+// Provider types and utils
+export type { Provider } from "./types/provider.js";
+export { SUPPORTED_PROVIDERS } from "./types/provider.js";
 
 // Types
 export type {
@@ -36,7 +40,19 @@ export type { PrivacyConfig, PrivacyProfile } from "./types/privacy.js";
 export { PRIVACY_PROFILES, resolvePrivacyConfig } from "./privacy/config.js";
 
 // Utilities (for advanced users)
-export { encodeProjectPath, decodeProjectPath, projectName, claudePaths } from "./utils/paths.js";
+export {
+	encodeProjectPath,
+	decodeProjectPath,
+	projectName,
+	providerPaths,
+	claudePaths,
+} from "./utils/paths.js";
+export {
+	DEFAULT_PROVIDER,
+	defaultProviderDir,
+	providerHomeDirName,
+	isProvider,
+} from "./utils/providers.js";
 export { toLocalDate, today, formatTime, resolveDateRange } from "./utils/dates.js";
 export { parseJsonl, streamJsonl, peekJsonl, readJsonl } from "./utils/jsonl.js";
 
