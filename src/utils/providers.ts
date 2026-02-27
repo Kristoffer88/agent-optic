@@ -8,6 +8,7 @@ const PROVIDER_HOME_DIR: Record<Provider, string> = {
 	openai: ".codex",
 	cursor: ".cursor",
 	windsurf: ".windsurf",
+	pi: ".pi",
 };
 
 export const DEFAULT_PROVIDER: Provider = "claude";

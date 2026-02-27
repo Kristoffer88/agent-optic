@@ -7,6 +7,7 @@ import { projectName } from "../utils/paths.js";
 import { canonicalProvider } from "../utils/providers.js";
 import { isProjectExcluded, redactString } from "../privacy/redact.js";
 import { readCodexSessionHeader } from "./codex-rollout-reader.js";
+import { readPiHistory } from "./pi-session-reader.js";
 
 interface ClaudeHistoryEntry {
 	display: string;
@@ -37,6 +38,12 @@ export async function readHistory(
 	},
 ): Promise<SessionInfo[]> {
 	const provider = canonicalProvider(options?.provider ?? "claude");
+	if (provider === "pi") {
+		return readPiHistory(
+			options?.sessionsDir ?? join(dirname(historyFile), "sessions"),
+			from, to, privacy,
+		);
+	}
 	if (provider === "codex") {
 		return readCodexHistory(
 			historyFile,

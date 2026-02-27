@@ -12,7 +12,7 @@ src/
   agent-optic.ts        # Main factory: createHistory()
   claude-optic.ts       # Backward-compatible Claude aliases
   types/                # All type definitions (one file per domain)
-  readers/              # File readers (history.jsonl, session JSONL, tasks, plans, projects, stats)
+  readers/              # File readers (history.jsonl, session JSONL, tasks, plans, projects, stats, pi-session-reader)
   parsers/              # Session transcript parsing, tool categorization, content block extraction
   aggregations/         # Daily summaries, project summaries, tool usage, time estimation
   privacy/              # Redaction engine, privacy profiles, credential detection
@@ -27,12 +27,13 @@ src/
 - **Bun-native.** `Bun.file()`, `Bun.Glob`, `Bun.write()`.
 - **Privacy by default.** `toolUseResult` content and thinking blocks are stripped before data reaches consumers.
 - **Two-tier session loading.** `list()` reads only `history.jsonl` (fast). `listWithMeta()` also peeks session files for branch/model/tokens (slower).
+- **Provider dispatch.** Three branches in readers/parsers: Claude (default), Codex, Pi. Each has its own session format and path layout. Pi has no `history.jsonl` — sessions discovered by directory scan.
 
 ## Conventions
 
 - All dates are `YYYY-MM-DD` strings in local time
 - Session IDs are UUIDs
-- Project paths are encoded with `/` → `-` for filesystem storage
+- Project paths are encoded with `/` → `-` for filesystem storage (Claude/Codex) or `--`-wrapped with `-` separators (Pi)
 - JSONL files are newline-delimited JSON, one record per line
 
 ## Security Rules

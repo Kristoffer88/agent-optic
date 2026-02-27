@@ -2,14 +2,14 @@
 
 > Reads local assistant history directories and returns structured JSON — sessions, costs, timesheets, work patterns.
 
-Zero-dependency, local-first TypeScript library for reading session data from provider directories such as `~/.claude/`, `~/.codex/`, `~/.cursor/`, and `~/.windsurf/`.
+Zero-dependency, local-first TypeScript library for reading session data from provider directories such as `~/.claude/`, `~/.codex/`, `~/.pi/`, `~/.cursor/`, and `~/.windsurf/`.
 
 > **Security Warning**: Provider home directories contain highly sensitive data — API keys, source code, credentials, and personal information may be present in plaintext session files. This library is designed with privacy as the primary concern. See [SECURITY.md](./SECURITY.md).
 
 ## Try it
 
 ```bash
-bunx agent-optic sessions
+bunx --silent agent-optic sessions
 ```
 
 ## Features
@@ -17,7 +17,8 @@ bunx agent-optic sessions
 - **Zero runtime dependencies**
 - **No network access**
 - **Privacy by default** — strips tool results and thinking blocks
-- **Two-tier session loading** — fast (`history.jsonl`) or detailed (full parse)
+- **Multi-tier session loading** — index, meta, detail, and transcript streaming
+- **Agent-first CLI contract** — stable JSON envelope + JSONL streaming + machine-readable errors
 - **Bun-native** — `Bun.file()`, `Bun.Glob`
 
 ## Install
@@ -171,11 +172,11 @@ const sessions = await ch.sessions.list();
 // List with metadata (slower — peeks session files for branch/model/tokens)
 const withMeta = await ch.sessions.listWithMeta();
 
-// Get full session detail
-const detail = await ch.sessions.detail(sessionId, projectPath);
+// Get full session detail (projectPath is optional for codex/openai)
+const detail = await ch.sessions.detail(sessionId);
 
-// Stream transcript entries
-for await (const entry of ch.sessions.transcript(sessionId, projectPath)) {
+// Stream transcript entries (projectPath is optional for codex/openai)
+for await (const entry of ch.sessions.transcript(sessionId)) {
   console.log(entry.message?.role, entry.timestamp);
 }
 
@@ -196,7 +197,7 @@ const cost = estimateCost(withMeta[0]); // USD
 
 ```typescript
 const ch = createHistory({
-  provider: "claude",                // "claude" | "codex" | "openai" | "cursor" | "windsurf"
+  provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "cursor" | "windsurf"
   providerDir: "~/.claude",          // default: provider-specific home directory
   privacy: "local",                  // "local" | "shareable" | "strict" | Partial<PrivacyConfig>
   cache: true,                       // default: true
@@ -204,6 +205,8 @@ const ch = createHistory({
 ```
 
 `openai` is currently an alias of Codex-format local history and defaults to `~/.codex`.
+
+`pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include `totalCost` from accumulated message costs.
 
 `createClaudeHistory()` is still exported for backward compatibility and behaves like `createHistory({ provider: "claude" })`.
 
@@ -213,9 +216,11 @@ const ch = createHistory({
 |--------|-------|-------|---------|
 | `sessions.list(filter?)` | Fast | `history.jsonl` only | `SessionInfo[]` |
 | `sessions.listWithMeta(filter?)` | Medium | + peeks session files | `SessionMeta[]` |
-| `sessions.detail(id, project)` | Slow | Full session parse | `SessionDetail` |
-| `sessions.transcript(id, project)` | Streaming | Full session file | `AsyncGenerator<TranscriptEntry>` |
+| `sessions.detail(id, project?)` | Slow | Full session parse | `SessionDetail` |
+| `sessions.transcript(id, project?)` | Streaming | Full session file | `AsyncGenerator<TranscriptEntry>` |
 | `sessions.count(filter?)` | Fast | `history.jsonl` only | `number` |
+
+For `codex`, `openai`, and `pi`, `project` is optional because project/cwd is resolved from session metadata.
 
 ### Other Data
 
@@ -294,26 +299,32 @@ const ch = createHistory({
 
 ```bash
 # Agent-friendly list (JSONL stream)
-bunx agent-optic sessions --provider codex --format jsonl
+bunx --silent agent-optic sessions --provider codex --format jsonl
 
 # Detail for one session
-bunx agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai
+bunx --silent agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai
 
 # Transcript stream (limit + selected fields)
-bunx agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50 --fields timestamp,message
+bunx --silent agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50 --fields timestamp,message
 
 # Tool usage report
-bunx agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
+bunx --silent agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
 
 # Daily summary
-bunx agent-optic daily --date 2026-02-09
+bunx --silent agent-optic daily --date 2026-02-09
 
 # Raw output without envelope
-bunx agent-optic sessions --provider claude --date 2026-02-09 --raw
+bunx --silent agent-optic sessions --provider claude --date 2026-02-09 --raw
 ```
 
 `--format json` returns a stable envelope (`schemaVersion`, `command`, `provider`, `generatedAt`, `data`) by default.
 Use `--raw` for data-only output and `--format jsonl` for one JSON object per line.
+
+Common agent commands:
+- `sessions [session-id?]` list sessions (or filter to one ID)
+- `detail <session-id>` full parsed session
+- `transcript <session-id>` transcript stream/output
+- `tool-usage` aggregated tool analytics
 
 ## Architecture
 

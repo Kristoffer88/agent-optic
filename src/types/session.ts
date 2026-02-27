@@ -26,6 +26,7 @@ export interface SessionMeta extends SessionInfo {
 	cacheCreationInputTokens: number;
 	cacheReadInputTokens: number;
 	messageCount: number;
+	totalCost?: number;
 }
 
 /** Full session detail from parsing the entire session JSONL file. */

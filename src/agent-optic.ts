@@ -159,7 +159,7 @@ export function createHistory(config?: HistoryConfig): History {
 			async detail(sessionId: string, projectPath?: string): Promise<SessionDetail> {
 				let session: SessionInfo | undefined;
 
-				if (!projectPath || provider === "codex") {
+				if (!projectPath || provider === "codex" || provider === "pi") {
 					const all = await readHistory(
 						paths.historyFile,
 						"2000-01-01",
@@ -224,11 +224,11 @@ export function createHistory(config?: HistoryConfig): History {
 
 		projects: {
 			async list(): Promise<ProjectInfo[]> {
-				return readProjects(paths.projectsDir, privacy);
+				return readProjects(paths.projectsDir, privacy, provider);
 			},
 
 			async memory(projectPath: string): Promise<ProjectMemory | null> {
-				return readProjectMemory(projectPath, paths.projectsDir);
+				return readProjectMemory(projectPath, paths.projectsDir, provider);
 			},
 		},
 

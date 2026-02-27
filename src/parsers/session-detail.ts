@@ -13,6 +13,7 @@ import {
 	parseCodexMessageText,
 	parseCodexToolArguments,
 } from "../readers/codex-rollout-reader.js";
+import { parsePiSessionDetail } from "../readers/pi-session-reader.js";
 
 /**
  * Parse a full session JSONL file into a SessionDetail.
@@ -25,6 +26,9 @@ export async function parseSessionDetail(
 	privacy: PrivacyConfig,
 ): Promise<SessionDetail> {
 	const normalized = canonicalProvider(provider);
+	if (normalized === "pi") {
+		return parsePiSessionDetail(session, paths.sessionsDir, privacy);
+	}
 	if (normalized === "codex") {
 		return parseCodexSessionDetail(session, paths.sessionsDir, privacy);
 	}

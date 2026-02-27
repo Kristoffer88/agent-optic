@@ -11,6 +11,7 @@ import {
 	parseCodexMessageText,
 	parseCodexToolArguments,
 } from "./codex-rollout-reader.js";
+import { peekPiSession, streamPiTranscript } from "./pi-session-reader.js";
 
 /**
  * Peek session metadata from a session JSONL file.
@@ -24,6 +25,9 @@ export async function peekSession(
 	privacy: PrivacyConfig,
 ): Promise<SessionMeta> {
 	const normalized = canonicalProvider(provider);
+	if (normalized === "pi") {
+		return peekPiSession(session, paths.sessionsDir);
+	}
 	if (normalized === "codex") {
 		return peekCodexSession(session, paths.sessionsDir);
 	}
@@ -167,6 +171,10 @@ export async function* streamTranscript(
 	privacy: PrivacyConfig,
 ): AsyncGenerator<TranscriptEntry> {
 	const normalized = canonicalProvider(provider);
+	if (normalized === "pi") {
+		yield* streamPiTranscript(sessionId, paths.sessionsDir, privacy);
+		return;
+	}
 	if (normalized === "codex") {
 		yield* streamCodexTranscript(sessionId, paths.sessionsDir, privacy);
 		return;

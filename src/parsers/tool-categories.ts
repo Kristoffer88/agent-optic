@@ -33,6 +33,14 @@ const TOOL_CATEGORY_MAP: Record<string, ToolCategory> = {
 	AskUserQuestion: "task",
 	Skill: "task",
 
+	// Pi tools (lowercase variants)
+	bash: "shell",
+	read: "file_read",
+	write: "file_write",
+	edit: "file_write",
+	glob: "file_read",
+	grep: "file_read",
+
 	// Codex tools
 	exec_command: "shell",
 	shell_command: "shell",

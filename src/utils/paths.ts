@@ -37,6 +37,23 @@ export function providerPaths(config?: {
 }): ProviderPaths {
 	const provider = config?.provider ?? DEFAULT_PROVIDER;
 	const base = config?.providerDir ?? defaultProviderDir(provider);
+
+	if (provider === "pi") {
+		const agentDir = join(base, "agent");
+		return {
+			base,
+			historyFile: join(base, "history.jsonl"), // Pi has no history.jsonl — unused
+			projectsDir: join(agentDir, "sessions"),
+			sessionsDir: join(agentDir, "sessions"),
+			globalStateFile: join(base, ".codex-global-state.json"),
+			tasksDir: join(base, "tasks"),
+			plansDir: join(base, "plans"),
+			todosDir: join(base, "todos"),
+			skillsDir: join(agentDir, "skills"),
+			statsCache: join(base, "stats-cache.json"),
+		};
+	}
+
 	return {
 		base,
 		historyFile: join(base, "history.jsonl"),
@@ -49,6 +66,12 @@ export function providerPaths(config?: {
 		skillsDir: join(base, "skills"),
 		statsCache: join(base, "stats-cache.json"),
 	};
+}
+
+/** Decode a Pi project directory name: strip `--` bookends, `-` → `/`, prepend `/`. */
+export function decodePiProjectPath(encoded: string): string {
+	const inner = encoded.replace(/^--/, "").replace(/--$/, "");
+	return "/" + inner.replace(/-/g, "/");
 }
 
 /** Backward-compatible alias for Claude-specific default paths. */

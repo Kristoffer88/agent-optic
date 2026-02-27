@@ -1,7 +1,8 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProjectInfo, ProjectMemory } from "../types/project.js";
-import { decodeProjectPath } from "../utils/paths.js";
+import type { Provider } from "../types/provider.js";
+import { decodeProjectPath, decodePiProjectPath } from "../utils/paths.js";
 import type { PrivacyConfig } from "../types/privacy.js";
 import { isProjectExcluded } from "../privacy/redact.js";
 
@@ -9,6 +10,7 @@ import { isProjectExcluded } from "../privacy/redact.js";
 export async function readProjects(
 	projectsDir: string,
 	privacy: PrivacyConfig,
+	provider?: Provider,
 ): Promise<ProjectInfo[]> {
 	const projects: ProjectInfo[] = [];
 
@@ -22,7 +24,10 @@ export async function readProjects(
 	for (const encodedPath of entries) {
 		if (encodedPath.startsWith(".")) continue;
 
-		const decodedPath = decodeProjectPath(encodedPath);
+		const isPiDir = provider === "pi" && encodedPath.startsWith("--") && encodedPath.endsWith("--");
+		const decodedPath = isPiDir
+			? decodePiProjectPath(encodedPath)
+			: decodeProjectPath(encodedPath);
 
 		if (isProjectExcluded(decodedPath, privacy)) continue;
 
@@ -60,8 +65,11 @@ export async function readProjects(
 export async function readProjectMemory(
 	projectPath: string,
 	projectsDir: string,
+	provider?: Provider,
 ): Promise<ProjectMemory | null> {
-	const encoded = projectPath.replace(/\//g, "-");
+	const encoded = provider === "pi"
+		? "--" + projectPath.slice(1).replace(/\//g, "-") + "--"
+		: projectPath.replace(/\//g, "-");
 	const memoryPath = join(projectsDir, encoded, "memory", "MEMORY.md");
 
 	try {
@@ -84,13 +92,14 @@ export async function readProjectMemory(
 export async function readProjectMemories(
 	projectPaths: string[],
 	projectsDir: string,
+	provider?: Provider,
 ): Promise<Map<string, string>> {
 	const memory = new Map<string, string>();
 	const unique = [...new Set(projectPaths)];
 
 	await Promise.all(
 		unique.map(async (projectPath) => {
-			const result = await readProjectMemory(projectPath, projectsDir);
+			const result = await readProjectMemory(projectPath, projectsDir, provider);
 			if (result) {
 				memory.set(result.projectName, result.content);
 			}
