@@ -30,7 +30,7 @@ OPTIONS
   --from YYYY-MM-DD     Start of date range
   --to YYYY-MM-DD       End of date range
   --project <name>      Filter by project name
-  --provider <name>     Data provider: claude (default), codex, openai, cursor, windsurf
+  --provider <name>     Data provider: claude (default), codex, openai, pi, cursor, windsurf
   --provider-dir <path> Override provider data directory (default: ~/.<provider>)
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --format <mode>       Output mode: json (default), jsonl
@@ -239,7 +239,7 @@ function assertValidArgs(args: CliArgs): void {
 	if (!isProvider(args.provider)) {
 		throw new CliError(
 			"INVALID_PROVIDER",
-			`Invalid provider: ${args.provider}. Use: claude, codex, openai, cursor, windsurf`,
+			`Invalid provider: ${args.provider}. Use: claude, codex, openai, pi, cursor, windsurf`,
 		);
 	}
 

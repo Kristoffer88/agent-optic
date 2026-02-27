@@ -43,6 +43,7 @@ export { PRIVACY_PROFILES, resolvePrivacyConfig } from "./privacy/config.js";
 export {
 	encodeProjectPath,
 	decodeProjectPath,
+	decodePiProjectPath,
 	projectName,
 	providerPaths,
 	claudePaths,

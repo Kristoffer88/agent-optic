@@ -46,7 +46,7 @@ export async function buildDailySummary(
 
 	// Read project memories
 	const projectPaths = [...new Set(sessionInfos.map((s) => s.project))];
-	const projectMemory = await readProjectMemories(projectPaths, paths.projectsDir);
+	const projectMemory = await readProjectMemories(projectPaths, paths.projectsDir, provider);
 
 	const projects = [...new Set(sessionInfos.map((s) => s.projectName))];
 	const totalPrompts = sessionInfos.reduce((sum, s) => sum + s.prompts.length, 0);
