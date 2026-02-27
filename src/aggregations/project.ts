@@ -5,7 +5,6 @@ import type { SessionInfo, ToolCallSummary } from "../types/session.js";
 import { readHistory } from "../readers/history-reader.js";
 import { parseSessionDetail } from "../parsers/session-detail.js";
 import { resolveDateRange } from "../utils/dates.js";
-import { projectName } from "../utils/paths.js";
 import { estimateHours } from "./time.js";
 
 /** Build per-project summaries from session data. */

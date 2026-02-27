@@ -2,13 +2,6 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { TaskInfo, TodoItem } from "../types/task.js";
 
-function isSameDate(fileDate: Date, targetDate: string): boolean {
-	const year = fileDate.getFullYear();
-	const month = String(fileDate.getMonth() + 1).padStart(2, "0");
-	const day = String(fileDate.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}` === targetDate;
-}
-
 function isInDateRange(fileDate: Date, from: string, to: string): boolean {
 	const year = fileDate.getFullYear();
 	const month = String(fileDate.getMonth() + 1).padStart(2, "0");

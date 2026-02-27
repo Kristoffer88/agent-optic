@@ -296,10 +296,6 @@ function extractCodexToolTarget(
 		}
 	}
 
-	if (name === "exec_command" && typeof input.cmd === "string") {
-		return input.cmd.split(" ")[0];
-	}
-
 	return undefined;
 }
 

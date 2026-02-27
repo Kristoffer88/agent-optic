@@ -1,7 +1,7 @@
 import type { PrivacyConfig } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import type { ToolUsageReport, SessionListFilter } from "../types/aggregations.js";
-import type { ToolCategory, ToolCallSummary } from "../types/session.js";
+import type { ToolCategory } from "../types/session.js";
 import { readHistory } from "../readers/history-reader.js";
 import { parseSessionDetail } from "../parsers/session-detail.js";
 import { resolveDateRange } from "../utils/dates.js";
