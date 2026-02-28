@@ -10,7 +10,7 @@
 		"agent-optic": "./src/cli/index.ts",
 		"claude-optic": "./src/cli/index.ts"
 	},
-	"files": ["src", "examples"],
+	"files": ["src", "examples", "skills"],
 	"keywords": [
 		"ai",
 		"assistant",
