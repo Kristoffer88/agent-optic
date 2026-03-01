@@ -78,8 +78,12 @@ async function peekClaudeSession(
 					meta.cacheReadInputTokens += usage.cache_read_input_tokens ?? 0;
 				}
 
-				// Count messages (user + assistant only)
-				if (entry.message?.role === "user" || entry.message?.role === "assistant") {
+				// Count messages (user + assistant only, skip meta and synthetic)
+				if (
+					(entry.message?.role === "user" || entry.message?.role === "assistant") &&
+					!entry.isMeta &&
+					entry.message?.model !== "<synthetic>"
+				) {
 					meta.messageCount++;
 				}
 			} catch {

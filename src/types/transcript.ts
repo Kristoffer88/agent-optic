@@ -13,6 +13,7 @@ export interface ContentBlock {
 /** Raw line from a session JSONL file. Union of all possible shapes. */
 export interface TranscriptEntry {
 	type?: "user" | "assistant" | "progress" | "file-history-snapshot";
+	subtype?: "turn_duration" | string;
 	message?: {
 		role?: "user" | "assistant";
 		content?: string | ContentBlock[];
@@ -33,4 +34,20 @@ export interface TranscriptEntry {
 	parentUuid?: string;
 	uuid?: string;
 	toolUseResult?: unknown;
+	/** Metadata-only entry (e.g. image paste) — no real message content */
+	isMeta?: boolean;
+	/** Wall-clock duration of this turn in milliseconds */
+	durationMs?: number;
+	/** Error message from API failures */
+	error?: string;
+	/** Whether this entry represents an API error (rate limit, prompt too long, etc.) */
+	isApiErrorMessage?: boolean;
+	/** Claude Code version string */
+	version?: string;
+	/** Human-readable session name */
+	slug?: string;
+	/** Subagent identifier */
+	agentId?: string;
+	/** User type, e.g. "external" */
+	userType?: string;
 }

@@ -115,8 +115,12 @@ async function parseClaudeSessionDetail(
 			detail.cacheReadInputTokens += usage.cache_read_input_tokens ?? 0;
 		}
 
-		// Count messages
-		if (role === "user" || role === "assistant") {
+		// Count messages (skip meta and synthetic)
+		if (
+			(role === "user" || role === "assistant") &&
+			!filtered.isMeta &&
+			filtered.message?.model !== "<synthetic>"
+		) {
 			detail.messageCount++;
 		}
 
