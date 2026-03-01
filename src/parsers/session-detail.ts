@@ -115,11 +115,12 @@ async function parseClaudeSessionDetail(
 			detail.cacheReadInputTokens += usage.cache_read_input_tokens ?? 0;
 		}
 
-		// Count messages (skip meta and synthetic)
+		// Count messages (skip meta-only, synthetic errors, tool result carriers)
 		if (
 			(role === "user" || role === "assistant") &&
 			!filtered.isMeta &&
-			filtered.message?.model !== "<synthetic>"
+			filtered.message?.model !== "<synthetic>" &&
+			entry.toolUseResult === undefined
 		) {
 			detail.messageCount++;
 		}

@@ -78,11 +78,13 @@ async function peekClaudeSession(
 					meta.cacheReadInputTokens += usage.cache_read_input_tokens ?? 0;
 				}
 
-				// Count messages (user + assistant only, skip meta and synthetic)
+				// Count messages (user + assistant only)
+				// Skip: meta-only entries, synthetic error messages, tool result carriers
 				if (
 					(entry.message?.role === "user" || entry.message?.role === "assistant") &&
 					!entry.isMeta &&
-					entry.message?.model !== "<synthetic>"
+					entry.message?.model !== "<synthetic>" &&
+					entry.toolUseResult === undefined
 				) {
 					meta.messageCount++;
 				}
