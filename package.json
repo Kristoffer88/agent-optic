@@ -1,18 +1,23 @@
 {
 	"name": "agent-optic",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Zero-dependency, local-first library for reading AI assistant session data from provider home directories",
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts"
 	},
 	"bin": {
-		"agent-optic": "./src/cli/index.ts",
-		"claude-optic": "./src/cli/index.ts"
+		"agent-optic": "src/cli/index.ts",
+		"claude-optic": "src/cli/index.ts"
 	},
-	"files": ["src", "examples", "skills"],
+	"files": [
+		"src",
+		"examples",
+		"skills"
+	],
 	"keywords": [
 		"ai",
+		"claude",
 		"assistant",
 		"privacy",
 		"local-first",
@@ -27,7 +32,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Kristoffer88/agent-optic"
+		"url": "git+https://github.com/Kristoffer88/agent-optic.git"
 	},
 	"scripts": {
 		"knip": "knip"
