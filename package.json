@@ -1,6 +1,6 @@
 {
 	"name": "agent-optic",
-	"version": "0.3.0",
+	"version": "0.4.0",
 	"description": "Zero-dependency, local-first library for reading AI assistant session data from provider home directories",
 	"type": "module",
 	"exports": {
@@ -24,6 +24,7 @@
 		"codex",
 		"cursor",
 		"windsurf",
+		"copilot",
 		"session-history",
 		"developer-tools",
 		"productivity"
