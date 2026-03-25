@@ -1,16 +1,16 @@
 #!/usr/bin/env bun
 /**
- * match-git-commits.ts — Correlate git commits with Claude sessions by timestamp proximity.
+ * match-git-commits.ts — Correlate git commits with assistant sessions by timestamp proximity.
  *
  * Usage:
  *   bun examples/match-git-commits.ts [--repo /path/to/repo] [--days 7] [--window 30] [--all-projects]
  *
- * For each recent git commit, finds which Claude sessions were active around
+ * For each recent git commit, finds which assistant sessions were active around
  * that time and estimates the token cost of producing that commit.
  * By default, only matches sessions for the same project. Use --all-projects to match all.
  */
 
-import { createClaudeHistory, estimateCost, projectName, type SessionMeta } from "../src/index.js";
+import { createHistory, estimateCost, projectName, type SessionMeta } from "../src/index.js";
 import { resolve } from "node:path";
 
 const args = process.argv.slice(2);
@@ -94,7 +94,7 @@ async function main() {
 	}
 
 	const from = new Date(Date.now() - (days + 1) * 86400000).toISOString().slice(0, 10);
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const repoName = projectName(repoPath);
 
 	let sessions: SessionMeta[];
@@ -122,7 +122,7 @@ async function main() {
 	}
 
 	const scope = allProjects ? "all projects" : repoName;
-	console.log(`Git Commits → Claude Sessions (last ${days} days, ${windowMinutes}min window, ${scope})`);
+	console.log(`Git Commits → Sessions (last ${days} days, ${windowMinutes}min window, ${scope})`);
 	console.log("=".repeat(100));
 	console.log(
 		"Commit".padEnd(10),

@@ -10,13 +10,12 @@
 src/
   index.ts              # Public API exports
   agent-optic.ts        # Main factory: createHistory()
-  claude-optic.ts       # Backward-compatible Claude aliases
   types/                # All type definitions (one file per domain)
   readers/              # File readers (history.jsonl, session JSONL, tasks, plans, projects, stats, pi-session-reader)
   parsers/              # Session transcript parsing, tool categorization, content block extraction
   aggregations/         # Daily summaries, project summaries, tool usage, time estimation
   privacy/              # Redaction engine, privacy profiles, credential detection
-  utils/                # Dates, paths, JSONL streaming
+  utils/                # Dates, paths, provider helpers
   cli/                  # CLI commands (sessions, projects, stats, export)
 ```
 
@@ -26,8 +25,8 @@ src/
 - **No network imports.** No `http`, `https`, `fetch`, `net`, `dns`, `WebSocket` anywhere in the codebase.
 - **Bun-native.** `Bun.file()`, `Bun.Glob`, `Bun.write()`.
 - **Privacy by default.** `toolUseResult` content and thinking blocks are stripped before data reaches consumers.
-- **Two-tier session loading.** `list()` reads only `history.jsonl` (fast). `listWithMeta()` also peeks session files for branch/model/tokens (slower).
-- **Provider dispatch.** Three branches in readers/parsers: Claude (default), Codex, Pi. Each has its own session format and path layout. Pi has no `history.jsonl` — sessions discovered by directory scan.
+- **Two-tier session loading.** `list()` reads only `history.jsonl` (fast). `listWithMeta()` also reads session files for branch/model/tokens (slower).
+- **Provider dispatch.** Three branches in readers/parsers: Claude (default), Codex/OpenAI, Pi. Each has its own session format and path layout. Pi has no `history.jsonl` — sessions discovered by directory scan.
 
 ## Conventions
 

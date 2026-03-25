@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * cost-per-feature.ts — Match Claude sessions to git branches and calculate cost per feature.
+ * cost-per-feature.ts — Match assistant sessions to git branches and calculate cost per feature.
  *
  * Usage:
  *   bun examples/cost-per-feature.ts [--repo /path/to/repo] [--from YYYY-MM-DD] [--to YYYY-MM-DD]
@@ -9,7 +9,7 @@
  * that were active on those branches. Outputs a cost breakdown per feature/branch.
  */
 
-import { createClaudeHistory, estimateCost, type SessionMeta } from "../src/index.js";
+import { createHistory, estimateCost, type SessionMeta } from "../src/index.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string): string | undefined {
@@ -20,6 +20,7 @@ function getArg(name: string): string | undefined {
 const repoPath = getArg("--repo") ?? process.cwd();
 const from = getArg("--from") ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 const to = getArg("--to");
+const topN = parseInt(getArg("--top") ?? "0") || 0;
 
 interface BranchInfo {
 	branch: string;
@@ -75,21 +76,33 @@ async function getDefaultBranch(): Promise<string> {
 }
 
 async function main() {
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const sessions = await ch.sessions.listWithMeta({ from, to });
 
-	const byBranch = new Map<string, SessionMeta[]>();
-	const unmatched: SessionMeta[] = [];
+	// Group sessions by project, then by branch within each project
+	interface ProjectGroup {
+		sessions: SessionMeta[];
+		byBranch: Map<string, SessionMeta[]>;
+		unmatched: SessionMeta[];
+	}
+	const byProject = new Map<string, ProjectGroup>();
 
 	for (const s of sessions) {
+		const project = s.projectName || "(unknown project)";
+		if (!byProject.has(project)) {
+			byProject.set(project, { sessions: [], byBranch: new Map(), unmatched: [] });
+		}
+		const pg = byProject.get(project)!;
+		pg.sessions.push(s);
+
 		const branch = s.gitBranch ?? "unknown";
 		if (branch === "unknown") {
-			unmatched.push(s);
-			continue;
+			pg.unmatched.push(s);
+		} else {
+			const list = pg.byBranch.get(branch) ?? [];
+			list.push(s);
+			pg.byBranch.set(branch, list);
 		}
-		const list = byBranch.get(branch) ?? [];
-		list.push(s);
-		byBranch.set(branch, list);
 	}
 
 	let gitBranches: BranchInfo[] = [];
@@ -110,65 +123,102 @@ async function main() {
 		commits: number;
 	}
 
-	const features: FeatureCost[] = [];
-
-	for (const [branch, branchSessions] of byBranch) {
-		const cost = branchSessions.reduce((sum, s) => sum + estimateCost(s), 0);
-		features.push({
-			branch,
-			sessions: branchSessions.length,
-			inputTokens: branchSessions.reduce((s, x) => s + x.totalInputTokens, 0),
-			outputTokens: branchSessions.reduce((s, x) => s + x.totalOutputTokens, 0),
-			cacheTokens: branchSessions.reduce((s, x) => s + x.cacheCreationInputTokens + x.cacheReadInputTokens, 0),
-			cost,
-			commits: commitMap.get(branch) ?? 0,
-		});
+	function buildFeatures(byBranch: Map<string, SessionMeta[]>): FeatureCost[] {
+		const features: FeatureCost[] = [];
+		for (const [branch, branchSessions] of byBranch) {
+			const cost = branchSessions.reduce((sum, s) => sum + estimateCost(s), 0);
+			features.push({
+				branch,
+				sessions: branchSessions.length,
+				inputTokens: branchSessions.reduce((s, x) => s + x.totalInputTokens, 0),
+				outputTokens: branchSessions.reduce((s, x) => s + x.totalOutputTokens, 0),
+				cacheTokens: branchSessions.reduce((s, x) => s + x.cacheCreationInputTokens + x.cacheReadInputTokens, 0),
+				cost,
+				commits: commitMap.get(branch) ?? 0,
+			});
+		}
+		features.sort((a, b) => b.cost - a.cost);
+		return features;
 	}
 
-	features.sort((a, b) => b.cost - a.cost);
+	// Sort projects by total cost descending
+	const sortedProjects = [...byProject.entries()].sort((a, b) => {
+		const costA = a[1].sessions.reduce((s, x) => s + estimateCost(x), 0);
+		const costB = b[1].sessions.reduce((s, x) => s + estimateCost(x), 0);
+		return costB - costA;
+	});
 
-	const totalCost = features.reduce((s, f) => s + f.cost, 0);
-	const unmatchedCost = unmatched.reduce((s, x) => s + estimateCost(x), 0);
+	const W = 90;
+	console.log("Cost per Feature / Branch (by Project)");
+	console.log("=".repeat(W));
 
-	console.log("Cost per Feature / Branch");
-	console.log("=".repeat(90));
-	console.log(
-		"Feature/Branch".padEnd(35),
-		"Sessions".padStart(10),
-		"Tokens".padStart(12),
-		"Est. Cost".padStart(12),
-		"Commits".padStart(10),
-	);
-	console.log("-".repeat(90));
+	let grandTotal = 0;
+	let grandSessions = 0;
 
-	for (const f of features) {
-		const tokens = f.inputTokens + f.outputTokens + f.cacheTokens;
+	const shownProjects = topN > 0 ? sortedProjects.slice(0, topN) : sortedProjects;
+	const collapsedProjects = topN > 0 ? sortedProjects.slice(topN) : [];
+
+	for (const [project, pg] of shownProjects) {
+		const projectCost = pg.sessions.reduce((s, x) => s + estimateCost(x), 0);
+		grandTotal += projectCost;
+		grandSessions += pg.sessions.length;
+
+		console.log("");
+		console.log(`  ${project}  (${pg.sessions.length} sessions, $${projectCost.toFixed(2)})`);
+		console.log("  " + "-".repeat(W - 2));
+
+		const features = buildFeatures(pg.byBranch);
+		for (const f of features) {
+			const tokens = f.inputTokens + f.outputTokens + f.cacheTokens;
+			console.log(
+				("    " + f.branch.slice(0, 30)).padEnd(35),
+				String(f.sessions).padStart(10),
+				formatTokens(tokens).padStart(12),
+				`$${f.cost.toFixed(2)}`.padStart(12),
+				String(f.commits).padStart(10),
+			);
+		}
+
+		if (pg.unmatched.length > 0) {
+			const tokens = pg.unmatched.reduce((s, x) => s + x.totalInputTokens + x.totalOutputTokens + x.cacheCreationInputTokens + x.cacheReadInputTokens, 0);
+			const unmatchedCost = pg.unmatched.reduce((s, x) => s + estimateCost(x), 0);
+			console.log(
+				"    (no branch)".padEnd(35),
+				String(pg.unmatched.length).padStart(10),
+				formatTokens(tokens).padStart(12),
+				`$${unmatchedCost.toFixed(2)}`.padStart(12),
+				"-".padStart(10),
+			);
+		}
+	}
+
+	if (collapsedProjects.length > 0) {
+		let collapsedSessions = 0;
+		let collapsedCost = 0;
+		for (const [, pg] of collapsedProjects) {
+			const cost = pg.sessions.reduce((s, x) => s + estimateCost(x), 0);
+			collapsedSessions += pg.sessions.length;
+			collapsedCost += cost;
+			grandTotal += cost;
+			grandSessions += pg.sessions.length;
+		}
+		console.log("");
 		console.log(
-			f.branch.slice(0, 34).padEnd(35),
-			String(f.sessions).padStart(10),
-			formatTokens(tokens).padStart(12),
-			`$${f.cost.toFixed(2)}`.padStart(12),
-			String(f.commits).padStart(10),
+			`  ... ${collapsedProjects.length} more projects`.padEnd(35),
+			String(collapsedSessions).padStart(10),
+			"".padStart(12),
+			`$${collapsedCost.toFixed(2)}`.padStart(12),
+			"".padStart(10),
 		);
 	}
 
-	if (unmatched.length > 0) {
-		const tokens = unmatched.reduce((s, x) => s + x.totalInputTokens + x.totalOutputTokens + x.cacheCreationInputTokens + x.cacheReadInputTokens, 0);
-		console.log(
-			"(no branch)".padEnd(35),
-			String(unmatched.length).padStart(10),
-			formatTokens(tokens).padStart(12),
-			`$${unmatchedCost.toFixed(2)}`.padStart(12),
-			"-".padStart(10),
-		);
-	}
-
-	console.log("-".repeat(90));
+	console.log("");
+	console.log("=".repeat(W));
 	console.log(
 		"TOTAL".padEnd(35),
-		String(sessions.length).padStart(10),
+		String(grandSessions).padStart(10),
 		"".padStart(12),
-		`$${(totalCost + unmatchedCost).toFixed(2)}`.padStart(12),
+		`$${grandTotal.toFixed(2)}`.padStart(12),
 		"".padStart(10),
 	);
 }

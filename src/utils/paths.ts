@@ -17,7 +17,7 @@ export function projectName(projectPath: string): string {
 	return projectPath.split("/").pop() || projectPath;
 }
 
-export interface ProviderPaths {
+interface ProviderPaths {
 	base: string;
 	historyFile: string;
 	projectsDir: string;
@@ -72,9 +72,4 @@ export function providerPaths(config?: {
 export function decodePiProjectPath(encoded: string): string {
 	const inner = encoded.replace(/^--/, "").replace(/--$/, "");
 	return "/" + inner.replace(/-/g, "/");
-}
-
-/** Backward-compatible alias for Claude-specific default paths. */
-export function claudePaths(claudeDir?: string): ProviderPaths {
-	return providerPaths({ provider: "claude", providerDir: claudeDir });
 }

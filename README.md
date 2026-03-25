@@ -70,9 +70,9 @@ Timesheet: 2026-02-10 → 2026-02-14
 ==========================================================================================
 Day   Date        Project                           Hours   Sessions    Prompts
 ------------------------------------------------------------------------------------------
-Mon   2026-02-10  claude-optic                       2.3          4         18
+Mon   2026-02-10  agent-optic                        2.3          4         18
                   my-app                               1.1          2          8
-Tue   2026-02-11  claude-optic                       3.5          6         32
+Tue   2026-02-11  agent-optic                        3.5          6         32
 ------------------------------------------------------------------------------------------
       TOTAL                                            6.9         12         58
 ```
@@ -99,7 +99,8 @@ sonnet-4-5-20250929            45     8.1M      2.3M     6.2M      4.5M       $4
 Export sampled prompts grouped by project as JSON — pipe to an LLM for categorization or analysis.
 
 ```bash
-bun examples/prompt-history.ts --from 2026-01-01 | claude "categorize these prompts by intent"
+# Pipe to your preferred LLM CLI
+bun examples/prompt-history.ts --from 2026-01-01 | your-llm-cli "categorize these prompts by intent"
 ```
 
 ### Session Digest
@@ -107,7 +108,8 @@ bun examples/prompt-history.ts --from 2026-01-01 | claude "categorize these prom
 Compact session summaries as JSON — first prompt, branch, model, token counts, cost, duration.
 
 ```bash
-bun examples/session-digest.ts --days 7 | claude "which sessions were the most productive?"
+# Pipe to your preferred LLM CLI
+bun examples/session-digest.ts --days 7 | your-llm-cli "which sessions were the most productive?"
 ```
 
 ### Work Patterns
@@ -115,7 +117,8 @@ bun examples/session-digest.ts --days 7 | claude "which sessions were the most p
 Aggregated work pattern metrics as JSON — hour distribution, late-night/weekend counts, longest and most expensive sessions.
 
 ```bash
-bun examples/work-patterns.ts | claude "analyze my work patterns and suggest improvements"
+# Pipe to your preferred LLM CLI
+bun examples/work-patterns.ts | your-llm-cli "analyze my work patterns and suggest improvements"
 ```
 
 ### Commit Tracker
@@ -169,7 +172,7 @@ const ch = createHistory({ provider: "claude" });
 // List today's sessions (fast — reads only history.jsonl)
 const sessions = await ch.sessions.list();
 
-// List with metadata (slower — peeks session files for branch/model/tokens)
+// List with metadata (slower — reads session files for branch/model/tokens)
 const withMeta = await ch.sessions.listWithMeta();
 
 // Get full session detail (projectPath is optional for codex/openai)
@@ -193,6 +196,8 @@ const cost = estimateCost(withMeta[0]); // USD
 
 ## API
 
+The public package surface is intentionally small: `createHistory`, core types, privacy profiles, pricing helpers, and a few date/project helpers. Low-level readers, parsers, and JSONL utilities remain internal.
+
 ### `createHistory(config?)`
 
 ```typescript
@@ -200,7 +205,6 @@ const ch = createHistory({
   provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "cursor" | "windsurf"
   providerDir: "~/.claude",          // default: provider-specific home directory
   privacy: "local",                  // "local" | "shareable" | "strict" | Partial<PrivacyConfig>
-  cache: true,                       // default: true
 });
 ```
 
@@ -208,14 +212,13 @@ const ch = createHistory({
 
 `pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include `totalCost` from accumulated message costs.
 
-`createClaudeHistory()` is still exported for backward compatibility and behaves like `createHistory({ provider: "claude" })`.
 
 ### Sessions
 
 | Method | Speed | Reads | Returns |
 |--------|-------|-------|---------|
 | `sessions.list(filter?)` | Fast | `history.jsonl` only | `SessionInfo[]` |
-| `sessions.listWithMeta(filter?)` | Medium | + peeks session files | `SessionMeta[]` |
+| `sessions.listWithMeta(filter?)` | Medium | + reads session files for metadata | `SessionMeta[]` |
 | `sessions.detail(id, project?)` | Slow | Full session parse | `SessionDetail` |
 | `sessions.transcript(id, project?)` | Streaming | Full session file | `AsyncGenerator<TranscriptEntry>` |
 | `sessions.count(filter?)` | Fast | `history.jsonl` only | `number` |
@@ -330,8 +333,7 @@ Common agent commands:
 
 ```
 src/
-  agent-optic.ts      # Main factory: createHistory()
-  claude-optic.ts     # Backward-compatible Claude aliases
+  agent-optic.ts      # Main factory and runtime API
   pricing.ts            # Model pricing data and cost estimation
   types/                # Type definitions (one file per domain)
   readers/              # File readers (history, session, tasks, plans, projects, stats)

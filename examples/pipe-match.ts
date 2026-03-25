@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * pipe-match.ts — Generic stdin matcher: pipe in any JSON array with timestamps,
- * match against Claude sessions.
+ * match against local assistant sessions.
  *
  * Usage:
  *   cat data.json | bun examples/pipe-match.ts [--window 30] [--field timestamp]
@@ -24,7 +24,7 @@
  *   timestamp, date, created, createdAt, created_at, time, start, startDate, closedDate, etc.
  */
 
-import { createClaudeHistory, estimateCost, type SessionMeta } from "../src/index.js";
+import { createHistory, estimateCost, type SessionMeta } from "../src/index.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string, fallback: string): string {
@@ -131,7 +131,7 @@ async function main() {
 	const from = new Date(minTs - 86400000).toISOString().slice(0, 10);
 	const to = new Date(maxTs + 86400000).toISOString().slice(0, 10);
 
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const sessions = await ch.sessions.listWithMeta({ from, to });
 
 	const windowMs = windowMinutes * 60 * 1000;

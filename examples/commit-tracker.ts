@@ -9,15 +9,18 @@
  *   bun examples/commit-tracker.ts init       — Backfill .ai-usage.jsonl for existing commits
  *
  * Appends a JSONL record to .ai-usage.jsonl for each commit that matches
- * a Claude session (within a configurable time window).
+ * a local assistant session (within a configurable time window).
  */
 
-import { createClaudeHistory, estimateCost, projectName, type SessionMeta } from "../src/index.js";
+import { createHistory, estimateCost, projectName, type SessionMeta } from "../src/index.js";
 import { resolve, join } from "node:path";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 
-const MARKER_START = "# claude-optic: ai-usage-tracker";
-const MARKER_END = "# end claude-optic";
+const MARKER_START = "# agent-optic: ai-usage-tracker";
+const MARKER_END = "# end agent-optic";
+const LEGACY_MARKER_START = "# claude-optic: ai-usage-tracker";
+const LEGACY_MARKER_END = "# end claude-optic";
 const TRACKING_FILE = ".ai-usage.jsonl";
 const WINDOW_MINUTES = 30;
 
@@ -51,7 +54,7 @@ async function install() {
 	if (existsSync(hookPath)) {
 		const existing = await Bun.file(hookPath).text();
 
-		if (existing.includes(MARKER_START)) {
+		if (existing.includes(MARKER_START) || existing.includes(LEGACY_MARKER_START)) {
 			console.log("Hook already installed.");
 			return;
 		}
@@ -79,7 +82,7 @@ async function uninstall() {
 	}
 
 	const existing = await Bun.file(hookPath).text();
-	if (!existing.includes(MARKER_START)) {
+	if (!existing.includes(MARKER_START) && !existing.includes(LEGACY_MARKER_START)) {
 		console.log("Hook not installed by commit-tracker.");
 		return;
 	}
@@ -89,8 +92,8 @@ async function uninstall() {
 	const filtered: string[] = [];
 	let inside = false;
 	for (const line of lines) {
-		if (line.trim() === MARKER_START) { inside = true; continue; }
-		if (line.trim() === MARKER_END) { inside = false; continue; }
+		if (line.trim() === MARKER_START || line.trim() === LEGACY_MARKER_START) { inside = true; continue; }
+		if (line.trim() === MARKER_END || line.trim() === LEGACY_MARKER_END) { inside = false; continue; }
 		if (!inside) filtered.push(line);
 	}
 
@@ -123,7 +126,7 @@ async function getCommitInfo(): Promise<CommitInfo> {
 		git("rev-parse", "--abbrev-ref", "HEAD"),
 		git("log", "-1", "--format=%an"),
 		git("log", "-1", "--format=%s"),
-		git("diff", "--stat", "HEAD~1..HEAD"),
+		git("diff", "--stat", "HEAD~1..HEAD").catch(() => git("diff", "--stat", "--root", "HEAD")),
 	]);
 
 	const filesMatch = statText.match(/(\d+) files? changed/);
@@ -152,22 +155,74 @@ function findMatchingSessions(commitTimestamp: number, sessions: SessionMeta[]):
 	});
 }
 
+/**
+ * Resolve the exact Claude session active at commit time.
+ *
+ * Primary: scan ~/.claude/sessions/{pid}.json — live session files written by Claude Code
+ * while a session is open. Each has { sessionId, cwd, startedAt }.
+ * If exactly one matches the repo, that's the answer.
+ *
+ * Fallback: walk ~/.claude/history.jsonl backwards to find the most recent prompt
+ * for this project at or before the commit timestamp.
+ * If multiple live sessions exist, use history.jsonl as a tiebreaker.
+ */
+async function resolveSessionId(repoRoot: string, repoName: string, commitTs: number): Promise<string | undefined> {
+	// --- Primary: live session files ---
+	const sessionsDir = join(homedir(), ".claude", "sessions");
+	const candidates: string[] = [];
+	const glob = new Bun.Glob("*.json");
+	try {
+		for await (const f of glob.scan({ cwd: sessionsDir, onlyFiles: true })) {
+			try {
+				const s = await Bun.file(join(sessionsDir, f)).json() as { sessionId?: string; cwd?: string };
+				if (!s.sessionId || !s.cwd) continue;
+				const c = s.cwd.toLowerCase();
+				const r = repoRoot.toLowerCase();
+				if (c === r || c.startsWith(r + "/")) candidates.push(s.sessionId);
+			} catch {}
+		}
+	} catch {} // ~/.claude/sessions/ may not exist on fresh installs
+
+	if (candidates.length === 1) return candidates[0];
+
+	// --- Fallback / tiebreaker: history.jsonl reverse scan ---
+	const histPath = join(homedir(), ".claude", "history.jsonl");
+	const histFile = Bun.file(histPath);
+	if (!(await histFile.exists())) return candidates[0]; // undefined if no candidates
+
+	const lines = (await histFile.text()).trim().split("\n");
+	for (let i = lines.length - 1; i >= 0; i--) {
+		try {
+			const e = JSON.parse(lines[i]) as { sessionId?: string; project?: string; timestamp?: number };
+			if (!e.sessionId || !e.project || !e.timestamp) continue;
+			if (e.timestamp > commitTs + 60_000) continue; // prompt after commit — skip
+			const p = e.project.toLowerCase();
+			const r = repoRoot.toLowerCase();
+			if (p !== r && !p.startsWith(r + "/") && !e.project.endsWith("/" + repoName)) continue;
+			// If we have live candidates, prefer one that also appears in history
+			if (candidates.length > 1 && !candidates.includes(e.sessionId)) continue;
+			return e.sessionId;
+		} catch {}
+	}
+	// Final fallback: if multiple live sessions but none in history (e.g. brand-new sessions
+	// with no prompts yet), return the first candidate rather than silently dropping
+	return candidates[0];
+}
+
 async function run() {
 	const repoRoot = await getRepoRoot();
 	const repoName = projectName(repoRoot);
 	const commit = await getCommitInfo();
 
-	// Get today's sessions for this project
-	const today = new Date().toISOString().slice(0, 10);
-	const ch = createClaudeHistory();
-	const allSessions = await ch.sessions.listWithMeta({ from: today });
+	// Resolve the exact session active at commit time — no time window, no guessing
+	const sessionId = await resolveSessionId(repoRoot, repoName, commit.timestamp);
+	if (!sessionId) return; // No Claude session found — skip silently
 
-	// Filter to matching project
-	const projectSessions = allSessions.filter((s) => isProjectMatch(s, repoRoot, repoName));
-
-	// Find sessions active around commit time
-	const matched = findMatchingSessions(commit.timestamp, projectSessions);
-	if (matched.length === 0) return; // No AI involvement — skip silently
+	const ch = createHistory({ provider: "claude" });
+	const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+	const allSessions = await ch.sessions.listWithMeta({ from: yesterday });
+	const matched = allSessions.filter((s) => s.sessionId === sessionId);
+	if (matched.length === 0) return; // Session found but not in recent history — skip
 
 	// Aggregate tokens and cost
 	const tokens = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
@@ -214,8 +269,8 @@ async function getCommitHistory(opts: { from?: string; to?: string } = {}): Prom
 	const text = await new Response(proc.stdout).text();
 	await proc.exited;
 
-	const branch = await git("rev-parse", "--abbrev-ref", "HEAD");
 	const commits: CommitInfo[] = [];
+	const fullHashes: string[] = [];
 	const lines = text.trim().split("\n");
 
 	for (let i = 0; i < lines.length; i++) {
@@ -239,14 +294,34 @@ async function getCommitHistory(opts: { from?: string; to?: string } = {}): Prom
 			}
 		}
 
+		fullHashes.push(hash);
 		commits.push({
 			hash: hash.slice(0, 7),
 			timestamp: parseInt(timestamp) * 1000,
-			branch,
+			branch: "unknown",
 			author,
 			message,
 			filesChanged,
 		});
+	}
+
+	// Resolve per-commit branch in one batched git name-rev call (~18ms for 34 commits).
+	// git log --format=%D only decorates ~9% of commits (branch tips); name-rev covers 100%.
+	if (fullHashes.length > 0) {
+		const nr = Bun.spawn(["git", "name-rev", "--always", "--exclude=HEAD", ...fullHashes], { stdout: "pipe", stderr: "pipe" });
+		const nrText = await new Response(nr.stdout).text();
+		await nr.exited;
+		const refMap = new Map<string, string>();
+		for (const line of nrText.trim().split("\n")) {
+			const [h, ref] = line.trim().split(/\s+/);
+			if (h && ref) {
+				const base = ref.split(/[~^]/)[0]; // strip ~1, ^2 ancestor notation
+				refMap.set(h, base.replace(/^remotes\/origin\//, "").replace(/^remotes\//, ""));
+			}
+		}
+		for (let i = 0; i < commits.length; i++) {
+			commits[i].branch = refMap.get(fullHashes[i]) ?? "unknown";
+		}
 	}
 
 	return commits;
@@ -279,7 +354,7 @@ async function init(opts: { from?: string; to?: string } = {}) {
 	// Load sessions covering full commit range
 	const earliest = new Date(Math.min(...commits.map((c) => c.timestamp)));
 	const from = new Date(earliest.getTime() - 86400000).toISOString().slice(0, 10);
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const allSessions = await ch.sessions.listWithMeta({ from });
 
 	// Filter to project

@@ -12,14 +12,6 @@ export function today(): string {
 	return toLocalDate(Date.now());
 }
 
-/** Format a timestamp to HH:MM (24h). */
-export function formatTime(timestamp: number): string {
-	const d = new Date(timestamp);
-	const h = String(d.getHours()).padStart(2, "0");
-	const m = String(d.getMinutes()).padStart(2, "0");
-	return `${h}:${m}`;
-}
-
 /** Resolve a DateFilter to concrete from/to strings. */
 export function resolveDateRange(filter?: {
 	date?: string;
@@ -35,6 +27,10 @@ export function resolveDateRange(filter?: {
 	if (filter?.from) {
 		return { from: filter.from, to: today() };
 	}
+	if (filter?.to) {
+		return { from: "1970-01-01", to: filter.to };
+	}
+
 	const t = today();
 	return { from: t, to: t };
 }

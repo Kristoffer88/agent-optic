@@ -9,7 +9,7 @@
  * expensive sessions — all as JSON for an LLM to interpret.
  */
 
-import { createClaudeHistory, estimateCost, toLocalDate, type SessionMeta } from "../src/index.js";
+import { createHistory, estimateCost, toLocalDate, type SessionMeta } from "../src/index.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string, fallback: string): string {
@@ -25,7 +25,7 @@ function durationMinutes(s: SessionMeta): number {
 }
 
 async function main() {
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const sessions = await ch.sessions.listWithMeta({ from, to });
 
 	if (sessions.length === 0) {

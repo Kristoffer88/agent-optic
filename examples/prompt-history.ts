@@ -6,10 +6,10 @@
  *   bun examples/prompt-history.ts [--from YYYY-MM-DD] [--to YYYY-MM-DD]
  *
  * Groups by project, deduplicates, samples proportionally, and truncates
- * so the output stays <10KB — small enough to pipe to `claude` or any LLM.
+ * so the output stays <10KB — small enough to pipe to any LLM.
  */
 
-import { createClaudeHistory, toLocalDate } from "../src/index.js";
+import { createHistory, toLocalDate } from "../src/index.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string, fallback: string): string {
@@ -41,7 +41,7 @@ function dedupeKey(text: string): string {
 }
 
 async function main() {
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const sessions = await ch.sessions.list({ from, to });
 
 	// Group prompts by project

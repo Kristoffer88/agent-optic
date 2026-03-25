@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * model-costs.ts — Compare model usage and costs across your Claude sessions.
+ * model-costs.ts — Compare model usage and costs across your sessions.
  *
  * Usage:
  *   bun examples/model-costs.ts [--from YYYY-MM-DD] [--to YYYY-MM-DD]
@@ -8,7 +8,7 @@
  * Shows which models you use most, their token consumption, and estimated costs.
  */
 
-import { createClaudeHistory, estimateCost, getModelPricing, type SessionMeta } from "../src/index.js";
+import { createHistory, estimateCost, getModelPricing, type SessionMeta } from "../src/index.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string, fallback: string): string {
@@ -43,7 +43,7 @@ interface ModelStats {
 }
 
 async function main() {
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const sessions = await ch.sessions.listWithMeta({ from, to });
 
 	const byModel = new Map<string, SessionMeta[]>();

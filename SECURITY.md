@@ -1,6 +1,6 @@
 # Security
 
-`~/.claude/` contains all input and output from your Claude Code sessions.
+`~/.claude/`, `~/.codex/`, `~/.pi/`, and similar provider directories can contain raw assistant session data, including prompts, outputs, tool activity, and file paths.
 
 ## How this library handles it
 

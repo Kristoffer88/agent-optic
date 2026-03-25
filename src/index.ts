@@ -1,12 +1,12 @@
 // Main factory
-export { createHistory, createClaudeHistory } from "./agent-optic.js";
-export type { History, HistoryConfig, ClaudeHistory, ClaudeHistoryConfig } from "./agent-optic.js";
+export { createHistory } from "./agent-optic.js";
+export type { History, HistoryConfig } from "./agent-optic.js";
 
-// Provider types and utils
+// Provider types
 export type { Provider } from "./types/provider.js";
 export { SUPPORTED_PROVIDERS } from "./types/provider.js";
 
-// Types
+// Domain types
 export type {
 	HistoryEntry,
 	SessionInfo,
@@ -15,17 +15,11 @@ export type {
 	ToolCategory,
 	ToolCallSummary,
 } from "./types/session.js";
-
 export type { ContentBlock, TranscriptEntry } from "./types/transcript.js";
-
 export type { TaskInfo, TodoItem } from "./types/task.js";
-
 export type { PlanInfo } from "./types/plan.js";
-
 export type { ProjectInfo, ProjectMemory } from "./types/project.js";
-
 export type { StatsCache } from "./types/stats.js";
-
 export type {
 	DailySummary,
 	ProjectSummary,
@@ -33,38 +27,15 @@ export type {
 	DateFilter,
 	SessionListFilter,
 } from "./types/aggregations.js";
-
 export type { PrivacyConfig, PrivacyProfile } from "./types/privacy.js";
 
-// Privacy profiles (runtime values, not just types)
+// Privacy
 export { PRIVACY_PROFILES, resolvePrivacyConfig } from "./privacy/config.js";
 
-// Utilities (for advanced users)
-export {
-	encodeProjectPath,
-	decodeProjectPath,
-	decodePiProjectPath,
-	projectName,
-	providerPaths,
-	claudePaths,
-} from "./utils/paths.js";
-export {
-	DEFAULT_PROVIDER,
-	defaultProviderDir,
-	providerHomeDirName,
-	isProvider,
-} from "./utils/providers.js";
-export { toLocalDate, today, formatTime, resolveDateRange } from "./utils/dates.js";
-export { parseJsonl, streamJsonl, peekJsonl, readJsonl } from "./utils/jsonl.js";
-
-// Parsers (for advanced users building custom pipelines)
-export { parseSessionDetail, parseSessions } from "./parsers/session-detail.js";
-export { categorizeToolName, toolDisplayName } from "./parsers/tool-categories.js";
-export { extractText, extractToolCalls, extractFilePaths, countThinkingBlocks } from "./parsers/content-blocks.js";
+// Small public utilities
+export { projectName } from "./utils/paths.js";
+export { toLocalDate, today } from "./utils/dates.js";
 
 // Pricing
 export type { ModelPricing } from "./pricing.js";
 export { MODEL_PRICING, getModelPricing, estimateCost, setPricing } from "./pricing.js";
-
-// Readers (for advanced users)
-export { readProjectMemories } from "./readers/project-reader.js";

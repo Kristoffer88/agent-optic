@@ -1,7 +1,7 @@
 {
 	"name": "agent-optic",
 	"version": "0.2.0",
-	"description": "Zero-dependency, local-first framework for reading AI assistant session data from provider home directories",
+	"description": "Zero-dependency, local-first library for reading AI assistant session data from provider home directories",
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts"
@@ -14,7 +14,8 @@
 	"keywords": [
 		"ai",
 		"assistant",
-		"claude",
+		"privacy",
+		"local-first",
 		"codex",
 		"cursor",
 		"windsurf",

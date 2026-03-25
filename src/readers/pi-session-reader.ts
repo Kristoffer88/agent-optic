@@ -41,7 +41,7 @@ async function getPiIndex(sessionsDir: string): Promise<Map<string, string>> {
 }
 
 /** Find a Pi session file by session ID. */
-export async function findPiSessionFile(
+async function findPiSessionFile(
 	sessionsDir: string,
 	sessionId: string,
 ): Promise<string | null> {

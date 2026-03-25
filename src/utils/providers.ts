@@ -17,10 +17,6 @@ export function defaultProviderDir(provider: Provider): string {
 	return join(homedir(), PROVIDER_HOME_DIR[provider]);
 }
 
-export function providerHomeDirName(provider: Provider): string {
-	return PROVIDER_HOME_DIR[provider];
-}
-
 export function isProvider(value: string): value is Provider {
 	return value in PROVIDER_HOME_DIR;
 }

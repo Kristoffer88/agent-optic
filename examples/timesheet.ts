@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * timesheet.ts — Generate a weekly timesheet from Claude session timestamps.
+ * timesheet.ts — Generate a weekly timesheet from session timestamps.
  *
  * Usage:
  *   bun examples/timesheet.ts [--from YYYY-MM-DD] [--to YYYY-MM-DD]
@@ -9,7 +9,7 @@
  * and outputs a table suitable for time tracking or invoicing.
  */
 
-import { createClaudeHistory, today, toLocalDate, type SessionMeta } from "../src/index.js";
+import { createHistory, today, toLocalDate, type SessionMeta } from "../src/index.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string): string | undefined {
@@ -27,7 +27,7 @@ const to = getArg("--to") ?? today();
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 async function main() {
-	const ch = createClaudeHistory();
+	const ch = createHistory({ provider: "claude" });
 	const sessions = await ch.sessions.listWithMeta({ from, to });
 
 	const byDateProject = new Map<string, Map<string, SessionMeta[]>>();

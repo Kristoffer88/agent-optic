@@ -42,8 +42,6 @@ export interface HistoryConfig {
 	providerDir?: string;
 	/** Privacy profile name or partial config. Defaults to "local" */
 	privacy?: PrivacyProfile | Partial<PrivacyConfig>;
-	/** Enable caching of repeated reads. Defaults to true */
-	cache?: boolean;
 	/** Override or extend model pricing (USD per million tokens). Merges with built-in defaults. */
 	pricing?: Record<string, ModelPricing>;
 }
@@ -52,7 +50,7 @@ export interface History {
 	sessions: {
 		/** Fast: reads only history.jsonl */
 		list(filter?: SessionListFilter): Promise<SessionInfo[]>;
-		/** Medium: also peeks session files for branch/model/tokens */
+		/** Medium: reads session files for lightweight branch/model/token metadata */
 		listWithMeta(filter?: SessionListFilter): Promise<SessionMeta[]>;
 		/** Full: parses entire session JSONL */
 		detail(sessionId: string, projectPath?: string): Promise<SessionDetail>;
@@ -303,23 +301,4 @@ export function createHistory(config?: HistoryConfig): History {
 			},
 		},
 	};
-}
-
-/** Backward-compatible Claude-specific config. */
-export interface ClaudeHistoryConfig extends Omit<HistoryConfig, "provider" | "providerDir"> {
-	/** Path to ~/.claude directory. Defaults to ~/.claude */
-	claudeDir?: string;
-}
-
-/** Backward-compatible Claude-specific alias. */
-export type ClaudeHistory = History;
-
-/** Create a ClaudeHistory instance for reading session data. */
-export function createClaudeHistory(config?: ClaudeHistoryConfig): ClaudeHistory {
-	const { claudeDir, ...rest } = config ?? {};
-	return createHistory({
-		...rest,
-		provider: "claude",
-		providerDir: claudeDir,
-	});
 }
