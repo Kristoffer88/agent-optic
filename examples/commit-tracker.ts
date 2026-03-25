@@ -209,6 +209,12 @@ async function resolveSessionId(repoRoot: string, repoName: string, commitTs: nu
 	return candidates[0];
 }
 
+interface TokenSnapshot {
+	cost: number;
+	tokens: { input: number; output: number; cache_read: number; cache_write: number };
+	messages: number;
+}
+
 async function run() {
 	const repoRoot = await getRepoRoot();
 	const repoName = projectName(repoRoot);
@@ -224,21 +230,63 @@ async function run() {
 	const matched = allSessions.filter((s) => s.sessionId === sessionId);
 	if (matched.length === 0) return; // Session found but not in recent history — skip
 
-	// Aggregate tokens and cost
-	const tokens = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
-	let messages = 0;
+	// Aggregate full session totals
+	const fullTokens = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
+	let fullMessages = 0;
 	const models = new Set<string>();
 
 	for (const s of matched) {
-		tokens.input += s.totalInputTokens;
-		tokens.output += s.totalOutputTokens;
-		tokens.cache_read += s.cacheReadInputTokens;
-		tokens.cache_write += s.cacheCreationInputTokens;
-		messages += s.messageCount;
+		fullTokens.input += s.totalInputTokens;
+		fullTokens.output += s.totalOutputTokens;
+		fullTokens.cache_read += s.cacheReadInputTokens;
+		fullTokens.cache_write += s.cacheCreationInputTokens;
+		fullMessages += s.messageCount;
 		if (s.model) models.add(s.model);
 	}
 
-	const costUsd = matched.reduce((sum, s) => sum + estimateCost(s), 0);
+	const fullCost = matched.reduce((sum, s) => sum + estimateCost(s), 0);
+
+	// Find the highest session snapshot already attributed to this sessionId in prior records.
+	// This lets us store only the DELTA since the last commit in this session — no double counting.
+	const trackingPath = join(repoRoot, TRACKING_FILE);
+	let prior: TokenSnapshot = { cost: 0, tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, messages: 0 };
+
+	if (existsSync(trackingPath)) {
+		for (const line of (await Bun.file(trackingPath).text()).trim().split("\n")) {
+			try {
+				const r = JSON.parse(line) as {
+					session_ids?: string[];
+					_session_snapshot?: TokenSnapshot;
+					cost_usd?: number;
+					tokens?: typeof fullTokens;
+					messages?: number;
+				};
+				if (!r.session_ids?.includes(sessionId)) continue;
+				if (r._session_snapshot && r._session_snapshot.cost > prior.cost) {
+					prior = r._session_snapshot;
+				} else if (!r._session_snapshot && r.session_ids.length === 1 && r.cost_usd !== undefined) {
+					// Record written by an older version (no snapshot): cost_usd was the full session cost
+					if (r.cost_usd > prior.cost) {
+						prior = {
+							cost: r.cost_usd,
+							tokens: r.tokens ?? { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+							messages: r.messages ?? 0,
+						};
+					}
+				}
+			} catch {}
+		}
+	}
+
+	// Delta: only what was spent since the last commit in this session
+	const tokens = {
+		input: Math.max(0, fullTokens.input - prior.tokens.input),
+		output: Math.max(0, fullTokens.output - prior.tokens.output),
+		cache_read: Math.max(0, fullTokens.cache_read - prior.tokens.cache_read),
+		cache_write: Math.max(0, fullTokens.cache_write - prior.tokens.cache_write),
+	};
+	const costUsd = Math.max(0, fullCost - prior.cost);
+	const messages = Math.max(0, fullMessages - prior.messages);
 
 	const record = {
 		commit: commit.hash,
@@ -251,10 +299,10 @@ async function run() {
 		models: [...models],
 		messages,
 		files_changed: commit.filesChanged,
+		_session_snapshot: { cost: fullCost, tokens: fullTokens, messages: fullMessages },
 	};
 
 	// Append to tracking file
-	const trackingPath = join(repoRoot, TRACKING_FILE);
 	await Bun.write(trackingPath, (existsSync(trackingPath) ? await Bun.file(trackingPath).text() : "") + JSON.stringify(record) + "\n");
 }
 
