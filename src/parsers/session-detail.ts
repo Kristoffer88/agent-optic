@@ -14,6 +14,7 @@ import {
 	parseCodexToolArguments,
 } from "../readers/codex-rollout-reader.js";
 import { parsePiSessionDetail } from "../readers/pi-session-reader.js";
+import { parseCopilotSessionDetail } from "../readers/copilot-session-reader.js";
 
 /**
  * Parse a full session JSONL file into a SessionDetail.
@@ -28,6 +29,9 @@ export async function parseSessionDetail(
 	const normalized = canonicalProvider(provider);
 	if (normalized === "pi") {
 		return parsePiSessionDetail(session, paths.sessionsDir, privacy);
+	}
+	if (normalized === "copilot") {
+		return parseCopilotSessionDetail(session, paths.sessionsDir, privacy);
 	}
 	if (normalized === "codex") {
 		return parseCodexSessionDetail(session, paths.sessionsDir, privacy);

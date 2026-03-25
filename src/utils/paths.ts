@@ -54,6 +54,21 @@ export function providerPaths(config?: {
 		};
 	}
 
+	if (provider === "copilot") {
+		return {
+			base,
+			historyFile: join(base, "history.jsonl"), // Copilot has no history.jsonl — unused
+			projectsDir: join(base, "session-state"),
+			sessionsDir: join(base, "session-state"),
+			globalStateFile: join(base, "global-state.json"),
+			tasksDir: join(base, "tasks"),
+			plansDir: join(base, "plans"),
+			todosDir: join(base, "todos"),
+			skillsDir: join(base, "skills"),
+			statsCache: join(base, "stats-cache.json"),
+		};
+	}
+
 	return {
 		base,
 		historyFile: join(base, "history.jsonl"),

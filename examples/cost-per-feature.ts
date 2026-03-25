@@ -10,6 +10,7 @@
  */
 
 import { createHistory, estimateCost, type SessionMeta } from "../src/index.js";
+import { fmtTokens } from "./git-helpers.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string): string | undefined {
@@ -173,7 +174,7 @@ async function main() {
 			console.log(
 				("    " + f.branch.slice(0, 30)).padEnd(35),
 				String(f.sessions).padStart(10),
-				formatTokens(tokens).padStart(12),
+				fmtTokens(tokens).padStart(12),
 				`$${f.cost.toFixed(2)}`.padStart(12),
 				String(f.commits).padStart(10),
 			);
@@ -185,7 +186,7 @@ async function main() {
 			console.log(
 				"    (no branch)".padEnd(35),
 				String(pg.unmatched.length).padStart(10),
-				formatTokens(tokens).padStart(12),
+				fmtTokens(tokens).padStart(12),
 				`$${unmatchedCost.toFixed(2)}`.padStart(12),
 				"-".padStart(10),
 			);
@@ -221,12 +222,6 @@ async function main() {
 		`$${grandTotal.toFixed(2)}`.padStart(12),
 		"".padStart(10),
 	);
-}
-
-function formatTokens(n: number): string {
-	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-	return String(n);
 }
 
 main().catch(console.error);

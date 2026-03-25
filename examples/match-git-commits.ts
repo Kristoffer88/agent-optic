@@ -11,6 +11,7 @@
  */
 
 import { createHistory, estimateCost, projectName, type SessionMeta } from "../src/index.js";
+import { resolveCommitBranches, findMatchingSessions } from "./git-helpers.js";
 import { resolve } from "node:path";
 
 const args = process.argv.slice(2);
@@ -29,6 +30,7 @@ interface GitCommit {
 	author: string;
 	date: string;
 	timestamp: number;
+	branch: string;
 	message: string;
 	filesChanged: number;
 }
@@ -43,6 +45,7 @@ async function getGitCommits(): Promise<GitCommit[]> {
 	await proc.exited;
 
 	const commits: GitCommit[] = [];
+	const fullHashes: string[] = [];
 	const lines = text.trim().split("\n");
 
 	for (let i = 0; i < lines.length; i++) {
@@ -66,24 +69,25 @@ async function getGitCommits(): Promise<GitCommit[]> {
 			}
 		}
 
+		fullHashes.push(hash);
 		commits.push({
 			hash: hash.slice(0, 8),
 			author,
 			date,
 			timestamp: parseInt(timestamp) * 1000,
+			branch: "unknown",
 			message: message.slice(0, 60),
 			filesChanged,
 		});
 	}
 
-	return commits;
-}
+	// git name-rev covers 100% of commits (vs ~9% from --format=%D)
+	const refMap = await resolveCommitBranches(fullHashes, repoPath);
+	for (let i = 0; i < commits.length; i++) {
+		commits[i].branch = refMap.get(fullHashes[i]) ?? "unknown";
+	}
 
-function findMatchingSessions(commit: GitCommit, sessions: SessionMeta[]): SessionMeta[] {
-	const windowMs = windowMinutes * 60 * 1000;
-	return sessions.filter((s) => {
-		return s.timeRange.start <= commit.timestamp + windowMs && s.timeRange.end >= commit.timestamp - windowMs;
-	});
+	return commits;
 }
 
 async function main() {
@@ -116,7 +120,7 @@ async function main() {
 
 	const sessionCommitCount = new Map<string, number>();
 	for (const commit of commits) {
-		for (const s of findMatchingSessions(commit, sessions)) {
+		for (const s of findMatchingSessions(commit.timestamp, commit.branch, sessions, windowMinutes * 60 * 1000)) {
 			sessionCommitCount.set(s.sessionId, (sessionCommitCount.get(s.sessionId) ?? 0) + 1);
 		}
 	}
@@ -138,7 +142,7 @@ async function main() {
 	let matchedCommits = 0;
 
 	for (const commit of commits) {
-		const matched = findMatchingSessions(commit, sessions);
+		const matched = findMatchingSessions(commit.timestamp, commit.branch, sessions, windowMinutes * 60 * 1000);
 
 		const cost = matched.reduce((sum, s) => {
 			const numCommits = sessionCommitCount.get(s.sessionId) ?? 1;

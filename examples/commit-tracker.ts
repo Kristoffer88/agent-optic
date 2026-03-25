@@ -12,7 +12,8 @@
  * a local assistant session (within a configurable time window).
  */
 
-import { createHistory, estimateCost, projectName, type SessionMeta } from "../src/index.js";
+import { createHistory, estimateCost, projectName, detectAgentFromCommit, type SessionMeta } from "../src/index.js";
+import { resolveCommitBranches, findMatchingSessions } from "./git-helpers.js";
 import { resolve, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -115,16 +116,18 @@ interface CommitInfo {
 	timestamp: number;
 	branch: string;
 	author: string;
+	authorEmail: string;
 	message: string;
 	filesChanged: number;
 }
 
 async function getCommitInfo(): Promise<CommitInfo> {
-	const [hash, timestampStr, branch, author, message, statText] = await Promise.all([
+	const [hash, timestampStr, branch, author, authorEmail, message, statText] = await Promise.all([
 		git("rev-parse", "HEAD"),
 		git("log", "-1", "--format=%at"),
 		git("rev-parse", "--abbrev-ref", "HEAD"),
 		git("log", "-1", "--format=%an"),
+		git("log", "-1", "--format=%ae"),
 		git("log", "-1", "--format=%s"),
 		git("diff", "--stat", "HEAD~1..HEAD").catch(() => git("diff", "--stat", "--root", "HEAD")),
 	]);
@@ -137,6 +140,7 @@ async function getCommitInfo(): Promise<CommitInfo> {
 		timestamp: parseInt(timestampStr) * 1000,
 		branch,
 		author,
+		authorEmail,
 		message,
 		filesChanged,
 	};
@@ -146,13 +150,6 @@ function isProjectMatch(session: SessionMeta, repoRoot: string, repoName: string
 	const sp = session.project.toLowerCase();
 	const rp = repoRoot.toLowerCase();
 	return sp === rp || sp.startsWith(rp + "/") || session.projectName?.toLowerCase() === repoName.toLowerCase();
-}
-
-function findMatchingSessions(commitTimestamp: number, sessions: SessionMeta[]): SessionMeta[] {
-	const windowMs = WINDOW_MINUTES * 60 * 1000;
-	return sessions.filter((s) => {
-		return s.timeRange.start <= commitTimestamp + windowMs && s.timeRange.end >= commitTimestamp - windowMs;
-	});
 }
 
 /**
@@ -287,7 +284,8 @@ async function run() {
 	const costUsd = Math.max(0, fullCost - prior.cost);
 	const messages = Math.max(0, fullMessages - prior.messages);
 
-	const record = {
+	const agentTool = detectAgentFromCommit(commit.authorEmail, commit.author);
+	const record: Record<string, unknown> = {
 		commit: commit.hash,
 		timestamp: new Date(commit.timestamp).toISOString(),
 		branch: commit.branch,
@@ -300,6 +298,7 @@ async function run() {
 		files_changed: commit.filesChanged,
 		_session_snapshot: { cost: fullCost, tokens: fullTokens, messages: fullMessages },
 	};
+	if (agentTool) record.ai_tool = agentTool;
 
 	await Bun.write(trackingPath, existingContent + JSON.stringify(record) + "\n");
 }
@@ -308,7 +307,7 @@ async function run() {
 
 async function getCommitHistory(opts: { from?: string; to?: string } = {}): Promise<CommitInfo[]> {
 	const since = opts.from ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-	const args = ["log", "--all", `--since=${since}`, "--format=%H\t%an\t%aI\t%at\t%s", "--shortstat"];
+	const args = ["log", "--all", `--since=${since}`, "--format=%H\t%an\t%ae\t%aI\t%at\t%s", "--shortstat"];
 	if (opts.to) args.push(`--until=${opts.to}`);
 
 	const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "pipe" });
@@ -324,9 +323,9 @@ async function getCommitHistory(opts: { from?: string; to?: string } = {}): Prom
 		if (!line || !line.includes("\t")) continue;
 
 		const parts = line.split("\t");
-		if (parts.length < 5) continue;
+		if (parts.length < 6) continue;
 
-		const [hash, author, , timestamp, message] = parts;
+		const [hash, author, authorEmail, , timestamp, message] = parts;
 
 		let filesChanged = 0;
 		// --shortstat puts a blank line between format and stat lines
@@ -346,6 +345,7 @@ async function getCommitHistory(opts: { from?: string; to?: string } = {}): Prom
 			timestamp: parseInt(timestamp) * 1000,
 			branch: "unknown",
 			author,
+			authorEmail,
 			message,
 			filesChanged,
 		});
@@ -353,21 +353,9 @@ async function getCommitHistory(opts: { from?: string; to?: string } = {}): Prom
 
 	// Resolve per-commit branch in one batched git name-rev call (~18ms for 34 commits).
 	// git log --format=%D only decorates ~9% of commits (branch tips); name-rev covers 100%.
-	if (fullHashes.length > 0) {
-		const nr = Bun.spawn(["git", "name-rev", "--always", "--exclude=HEAD", ...fullHashes], { stdout: "pipe", stderr: "pipe" });
-		const nrText = await new Response(nr.stdout).text();
-		await nr.exited;
-		const refMap = new Map<string, string>();
-		for (const line of nrText.trim().split("\n")) {
-			const [h, ref] = line.trim().split(/\s+/);
-			if (h && ref) {
-				const base = ref.split(/[~^]/)[0]; // strip ~1, ^2 ancestor notation
-				refMap.set(h, base.replace(/^remotes\/origin\//, "").replace(/^remotes\//, ""));
-			}
-		}
-		for (let i = 0; i < commits.length; i++) {
-			commits[i].branch = refMap.get(fullHashes[i]) ?? "unknown";
-		}
+	const refMap = await resolveCommitBranches(fullHashes);
+	for (let i = 0; i < commits.length; i++) {
+		commits[i].branch = refMap.get(fullHashes[i]) ?? "unknown";
 	}
 
 	return commits;
@@ -411,7 +399,7 @@ async function init(opts: { from?: string; to?: string } = {}) {
 	const commitMatches = new Map<string, SessionMeta[]>();
 	for (const commit of commits) {
 		if (existingHashes.has(commit.hash)) continue;
-		const matched = findMatchingSessions(commit.timestamp, projectSessions);
+		const matched = findMatchingSessions(commit.timestamp, commit.branch, projectSessions, WINDOW_MINUTES * 60 * 1000);
 		if (matched.length === 0) continue;
 		commitMatches.set(commit.hash, matched);
 		for (const s of matched) {
@@ -454,7 +442,8 @@ async function init(opts: { from?: string; to?: string } = {}) {
 			return sum + estimateCost(s) / share;
 		}, 0);
 
-		newRecords.push(JSON.stringify({
+		const agentTool = detectAgentFromCommit(commit.authorEmail, commit.author);
+		const initRecord: Record<string, unknown> = {
 			commit: commit.hash,
 			timestamp: new Date(commit.timestamp).toISOString(),
 			branch: commit.branch,
@@ -465,7 +454,9 @@ async function init(opts: { from?: string; to?: string } = {}) {
 			models: [...models],
 			messages,
 			files_changed: commit.filesChanged,
-		}));
+		};
+		if (agentTool) initRecord.ai_tool = agentTool;
+		newRecords.push(JSON.stringify(initRecord));
 	}
 
 	// Append all new records at once

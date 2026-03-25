@@ -10,15 +10,20 @@ export interface ModelPricing {
 
 /** Default model pricing (USD per million tokens). */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-	// Opus 4.5+ ($5/$25)
+	// Opus 4.6 ($5/$25)
 	"claude-opus-4-6": { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+
+	// Sonnet 4.6 ($3/$15)
+	"claude-sonnet-4-6": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
+
+	// Opus 4.5 ($5/$25)
 	"claude-opus-4-5-20250514": { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
 
 	// Opus 4.0–4.1 ($15/$75)
 	"claude-opus-4-1-20250514": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
 	"claude-opus-4-0-20250514": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
 
-	// Sonnet ($3/$15)
+	// Sonnet 4.5 ($3/$15)
 	"claude-sonnet-4-5-20250929": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
 	"claude-sonnet-4-5-20250514": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
 	"claude-sonnet-4-0-20250514": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
@@ -37,16 +42,73 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 const FALLBACK_PRICING: ModelPricing = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 };
 
 let activePricing: Record<string, ModelPricing> = MODEL_PRICING;
+// Pre-normalized key map; rebuilt when activePricing changes
+let normalizedPricingKeys: Map<string, ModelPricing> | null = null;
+
+function getNormalizedPricingKeys(): Map<string, ModelPricing> {
+	if (!normalizedPricingKeys) {
+		normalizedPricingKeys = new Map(
+			Object.entries(activePricing).map(([k, v]) => [normalizeModelName(k), v]),
+		);
+	}
+	return normalizedPricingKeys;
+}
 
 /** Override or extend the pricing table. Merges with built-in defaults. */
 export function setPricing(overrides: Record<string, ModelPricing>): void {
 	activePricing = { ...MODEL_PRICING, ...overrides };
+	normalizedPricingKeys = null;
 }
 
-/** Look up pricing for a model, falling back to Sonnet rates. */
+/**
+ * Normalize a model name for pricing lookup.
+ * Strips provider prefixes, date suffixes, and qualifiers so that
+ * "anthropic/claude-sonnet-4-6-20260101:thinking" resolves to "claude-sonnet-4-6".
+ * Normalization approach inspired by agentlytics.
+ */
+export function normalizeModelName(model: string): string {
+	let name = model.trim().toLowerCase();
+	// Strip provider prefixes: anthropic/, anthropic., aws/, bedrock/, us.anthropic.
+	name = name.replace(/^(?:anthropic|aws|bedrock)[./]|^us\.anthropic[./]/, "");
+	// Strip qualifier suffixes: :thinking, :preview, :latest, -preview, -latest, -fast, -turbo
+	name = name.replace(/(?::(?:thinking|preview|latest)|-(?:preview|latest|fast|turbo))$/, "");
+	// Strip 8-digit date suffix (YYYYMMDD)
+	name = name.replace(/-\d{8}$/, "");
+	// Normalize dots in version numbers to dashes (e.g. "claude-opus-4.6" → "claude-opus-4-6")
+	name = name.replace(/(\w)\.(\d)/g, "$1-$2");
+	return name;
+}
+
+/**
+ * Look up pricing for a model, falling back to Sonnet rates.
+ * Resolution order:
+ *   1. Exact match
+ *   2. Normalized exact match (strip prefix/date/qualifiers)
+ *   3. Longest normalized prefix match (future model variants)
+ */
 export function getModelPricing(model?: string): ModelPricing {
 	if (!model) return FALLBACK_PRICING;
-	return activePricing[model] ?? FALLBACK_PRICING;
+
+	// 1. Exact match
+	if (activePricing[model]) return activePricing[model];
+
+	// 2. Normalized exact match
+	const norm = normalizeModelName(model);
+	const normMap = getNormalizedPricingKeys();
+	const exact = normMap.get(norm);
+	if (exact) return exact;
+
+	// 3. Longest normalized prefix match
+	// e.g. incoming "claude-sonnet-4-5" matches table key "claude-sonnet-4-5-20250929"
+	let best: ModelPricing | undefined;
+	let bestLen = 0;
+	for (const [normKey, pricing] of normMap) {
+		if (norm.startsWith(normKey) && normKey.length > bestLen) {
+			best = pricing;
+			bestLen = normKey.length;
+		}
+	}
+	return best ?? FALLBACK_PRICING;
 }
 
 /** Estimate USD cost of a session based on token counts and model. */

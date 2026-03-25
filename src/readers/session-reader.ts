@@ -12,6 +12,7 @@ import {
 	parseCodexToolArguments,
 } from "./codex-rollout-reader.js";
 import { peekPiSession, streamPiTranscript } from "./pi-session-reader.js";
+import { peekCopilotSession, streamCopilotTranscript } from "./copilot-session-reader.js";
 
 /**
  * Peek session metadata from a session JSONL file.
@@ -27,6 +28,9 @@ export async function peekSession(
 	const normalized = canonicalProvider(provider);
 	if (normalized === "pi") {
 		return peekPiSession(session, paths.sessionsDir);
+	}
+	if (normalized === "copilot") {
+		return peekCopilotSession(session, paths.sessionsDir);
 	}
 	if (normalized === "codex") {
 		return peekCodexSession(session, paths.sessionsDir);
@@ -179,6 +183,10 @@ export async function* streamTranscript(
 	const normalized = canonicalProvider(provider);
 	if (normalized === "pi") {
 		yield* streamPiTranscript(sessionId, paths.sessionsDir, privacy);
+		return;
+	}
+	if (normalized === "copilot") {
+		yield* streamCopilotTranscript(sessionId, paths.sessionsDir, privacy);
 		return;
 	}
 	if (normalized === "codex") {

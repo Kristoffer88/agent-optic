@@ -38,4 +38,7 @@ export { toLocalDate, today } from "./utils/dates.js";
 
 // Pricing
 export type { ModelPricing } from "./pricing.js";
-export { MODEL_PRICING, getModelPricing, estimateCost, setPricing } from "./pricing.js";
+export { MODEL_PRICING, getModelPricing, normalizeModelName, estimateCost, setPricing } from "./pricing.js";
+
+// Provider utilities
+export { detectAgentFromCommit, AGENT_COMMIT_EMAILS, AGENT_COMMIT_USERNAMES } from "./utils/providers.js";

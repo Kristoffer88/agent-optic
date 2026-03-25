@@ -8,6 +8,7 @@ import { canonicalProvider } from "../utils/providers.js";
 import { isProjectExcluded, redactString } from "../privacy/redact.js";
 import { readCodexSessionHeader } from "./codex-rollout-reader.js";
 import { readPiHistory } from "./pi-session-reader.js";
+import { readCopilotHistory } from "./copilot-session-reader.js";
 
 interface ClaudeHistoryEntry {
 	display: string;
@@ -41,6 +42,12 @@ export async function readHistory(
 	if (provider === "pi") {
 		return readPiHistory(
 			options?.sessionsDir ?? join(dirname(historyFile), "sessions"),
+			from, to, privacy,
+		);
+	}
+	if (provider === "copilot") {
+		return readCopilotHistory(
+			options?.sessionsDir ?? join(dirname(historyFile), "session-state"),
 			from, to, privacy,
 		);
 	}

@@ -9,6 +9,7 @@
  */
 
 import { createHistory, estimateCost, getModelPricing, type SessionMeta } from "../src/index.js";
+import { fmtTokens } from "./git-helpers.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string, fallback: string): string {
@@ -19,11 +20,6 @@ function getArg(name: string, fallback: string): string {
 const from = getArg("--from", new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
 const to = getArg("--to", new Date().toISOString().slice(0, 10));
 
-function formatTokens(n: number): string {
-	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-	return String(n);
-}
 
 function shortModel(model: string): string {
 	if (model.includes("opus")) return model.replace(/claude-/, "").slice(0, 20);
@@ -92,10 +88,10 @@ async function main() {
 		console.log(
 			shortModel(s.model).padEnd(24),
 			String(s.sessions).padStart(10),
-			formatTokens(s.inputTokens).padStart(10),
-			formatTokens(s.outputTokens).padStart(10),
-			formatTokens(s.cacheWriteTokens).padStart(10),
-			formatTokens(s.cacheReadTokens).padStart(10),
+			fmtTokens(s.inputTokens).padStart(10),
+			fmtTokens(s.outputTokens).padStart(10),
+			fmtTokens(s.cacheWriteTokens).padStart(10),
+			fmtTokens(s.cacheReadTokens).padStart(10),
 			`$${s.cost.toFixed(2)}`.padStart(12),
 		);
 	}
@@ -104,8 +100,8 @@ async function main() {
 	console.log(
 		"TOTAL".padEnd(24),
 		String(totalSessions).padStart(10),
-		formatTokens(totalInput).padStart(10),
-		formatTokens(totalOutput).padStart(10),
+		fmtTokens(totalInput).padStart(10),
+		fmtTokens(totalOutput).padStart(10),
 		"".padStart(10),
 		"".padStart(10),
 		`$${totalCost.toFixed(2)}`.padStart(12),
@@ -123,7 +119,7 @@ async function main() {
 		const avgCost = s.cost / s.sessions;
 		const avgTokens = (s.inputTokens + s.outputTokens) / s.sessions;
 		console.log(
-			`  ${shortModel(s.model).padEnd(24)} $${avgCost.toFixed(3)}/session  ${formatTokens(avgTokens)} tokens/session`,
+			`  ${shortModel(s.model).padEnd(24)} $${avgCost.toFixed(3)}/session  ${fmtTokens(avgTokens)} tokens/session`,
 		);
 	}
 }

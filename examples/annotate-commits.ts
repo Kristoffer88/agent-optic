@@ -2,35 +2,40 @@
 /**
  * annotate-commits.ts — Write AI cost data as git notes on each commit in .ai-usage.jsonl
  *
+ * Uses the refs/notes/ai namespace (compatible with git-ai tooling).
+ * Each note has a human-readable summary line followed by a machine-readable JSON section.
+ *
  * Usage:
  *   bun examples/annotate-commits.ts [path-to-repo]   # default: cwd
  *   bun examples/annotate-commits.ts --push           # also push notes to origin
  *
- * After running, git log --show-notes displays AI cost inline:
+ * After running, git log --show-notes=ai displays AI cost inline:
  *
  *   commit ad7ac31...
  *       Fix messageCount: also exclude toolUseResult carriers
  *
- *   Notes:
+ *   Notes (ai):
  *       AI: $2.71 | out: 21K | cache: 5.8M | sessions: 9 | claude-sonnet-4-6
+ *       ---
+ *       {"schema":"agent-optic/1.0","cost_usd":2.71,...}
  */
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { fmtTokens } from "./git-helpers.js";
+
+const NOTES_REF = "refs/notes/ai";
 
 interface UsageRecord {
 	commit: string;
+	branch?: string;
 	tokens: { input: number; output: number; cache_read: number; cache_write: number };
 	cost_usd: number;
 	models: string[];
 	session_ids: string[];
-}
-
-function fmt(n: number): string {
-	if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
-	if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-	if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
-	return String(n);
+	messages?: number;
+	files_changed?: number;
+	ai_tool?: string;
 }
 
 // ── CLI args ──────────────────────────────────────────────────────────
@@ -68,15 +73,29 @@ let skipped = 0;
 for (const r of records) {
 	const model = r.models[0] ?? "unknown";
 
-	const note = [
+	const summary = [
 		`AI: $${r.cost_usd.toFixed(2)}`,
-		`out: ${fmt(r.tokens.output)}`,
-		`cache: ${fmt(r.tokens.cache_read)}`,
+		`out: ${fmtTokens(r.tokens.output)}`,
+		`cache: ${fmtTokens(r.tokens.cache_read)}`,
 		`sessions: ${r.session_ids.length}`,
 		model,
 	].join(" | ");
 
-	const proc = Bun.spawn(["git", "notes", "add", "-f", "-m", note, r.commit], {
+	const meta = JSON.stringify({
+		schema: "agent-optic/1.0",
+		sessions: r.session_ids,
+		tokens: r.tokens,
+		cost_usd: r.cost_usd,
+		models: r.models,
+		...(r.branch ? { branch: r.branch } : {}),
+		...(r.messages !== undefined ? { messages: r.messages } : {}),
+		...(r.files_changed !== undefined ? { files_changed: r.files_changed } : {}),
+		...(r.ai_tool ? { ai_tool: r.ai_tool } : {}),
+	});
+
+	const note = `${summary}\n---\n${meta}`;
+
+	const proc = Bun.spawn(["git", "notes", "--ref", NOTES_REF, "add", "-f", "-m", note, r.commit], {
 		cwd: repoPath,
 		stdout: "pipe",
 		stderr: "pipe",
@@ -96,13 +115,13 @@ for (const r of records) {
 }
 
 console.log(`${annotated} commits annotated, ${skipped} skipped (not in this repo)`);
-console.log(`\nView with: git log --show-notes`);
+console.log(`\nView with: git log --show-notes=ai`);
 
 // ── Push notes ────────────────────────────────────────────────────────
 
 if (push) {
 	console.log("\nPushing notes to origin...");
-	const proc = Bun.spawn(["git", "push", "origin", "refs/notes/commits"], {
+	const proc = Bun.spawn(["git", "push", "origin", `${NOTES_REF}:${NOTES_REF}`], {
 		cwd: repoPath,
 		stdout: "pipe",
 		stderr: "pipe",
@@ -112,7 +131,7 @@ if (push) {
 	const err = await new Response(proc.stderr).text();
 	if (exitCode === 0) {
 		console.log("Notes pushed. Others can fetch with:");
-		console.log("  git fetch origin refs/notes/commits:refs/notes/commits");
+		console.log(`  git fetch origin ${NOTES_REF}:${NOTES_REF}`);
 	} else {
 		console.error("Push failed:", err.trim() || out.trim());
 	}
