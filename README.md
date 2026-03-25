@@ -126,22 +126,59 @@ bun examples/work-patterns.ts | your-llm-cli "analyze my work patterns and sugge
 Post-commit hook that records AI usage per commit to `.ai-usage.jsonl`.
 
 ```bash
-# Install the git hook
+# Install as post-commit hook
 bun examples/commit-tracker.ts install
 
-# Or run manually for the latest commit
+# Backfill last 30 days of commits
+bun examples/commit-tracker.ts init
+
+# Run manually for the latest commit
 bun examples/commit-tracker.ts run
+
+# Uninstall
+bun examples/commit-tracker.ts uninstall
 ```
 
-Each commit gets a JSONL record with matched sessions, token counts, and cost:
+Each commit gets a JSONL record linking it to the sessions that were active at commit time:
 
 ```json
-{"commit":"7c5a457","timestamp":"2026-02-13T21:12:13.000Z","branch":"main","sessions":2,"tokens":{"input":194,"output":1638,"cache_read":1534390,"cache_write":83203},"cost_usd":1.33,"models":["claude-opus-4-6"],"messages":89,"files_changed":2}
+{"commit":"7c5a457","timestamp":"2026-02-13T21:12:13.000Z","branch":"main","author":"kristoffer","session_ids":["019c9aea-484d-7200-87fd-07a545276ac4"],"tokens":{"input":194,"output":1638,"cache_read":1534390,"cache_write":83203},"cost_usd":1.33,"models":["claude-opus-4-6"],"messages":89,"files_changed":2}
+```
+
+Session matching uses timestamp proximity + branch preference. If the commit was authored by a known AI agent (Cursor, GitHub Copilot SWE, Devin), `ai_tool` is added automatically.
+
+### Annotate Commits
+
+Writes AI cost data as git notes on each commit in `.ai-usage.jsonl`. Uses `refs/notes/ai` (compatible with [git-ai](https://github.com/matt-dray/git-ai) tooling).
+
+```bash
+bun examples/annotate-commits.ts
+bun examples/annotate-commits.ts --push  # also push notes to origin
 ```
 
 ```bash
-# Uninstall when done
-bun examples/commit-tracker.ts uninstall
+# View inline in git log
+git log --show-notes=ai
+
+# Fetch notes from a remote
+git fetch origin refs/notes/ai:refs/notes/ai
+```
+
+Each note has a human-readable line followed by a JSON section:
+
+```
+AI: $1.33 | out: 2K | cache: 1.5M | sessions: 1 | claude-opus-4-6
+---
+{"schema":"agent-optic/1.0","sessions":[...],"tokens":{...},"cost_usd":1.33,"models":["claude-opus-4-6"],"branch":"main"}
+```
+
+### Branch Report
+
+Generates a self-contained HTML report of token usage and cost per branch from `.ai-usage.jsonl`.
+
+```bash
+bun examples/branch-report.ts > report.html
+bun examples/branch-report.ts path/to/.ai-usage.jsonl > report.html
 ```
 
 ### Pipe Match
@@ -202,7 +239,7 @@ The public package surface is intentionally small: `createHistory`, core types, 
 
 ```typescript
 const ch = createHistory({
-  provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "cursor" | "windsurf"
+  provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "cursor" | "windsurf" | "copilot"
   providerDir: "~/.claude",          // default: provider-specific home directory
   privacy: "local",                  // "local" | "shareable" | "strict" | Partial<PrivacyConfig>
 });
@@ -211,6 +248,8 @@ const ch = createHistory({
 `openai` is currently an alias of Codex-format local history and defaults to `~/.codex`.
 
 `pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include `totalCost` from accumulated message costs.
+
+`copilot` reads from `~/.copilot/session-state/` — sessions are discovered from `workspace.yaml` files, token totals from `session.shutdown` events in `events.jsonl`.
 
 
 ### Sessions
@@ -251,7 +290,7 @@ ch.aggregate.estimateHours(sessions)                       // number (gap-capped
 ### Cost Estimation
 
 ```typescript
-import { estimateCost, getModelPricing, MODEL_PRICING } from "agent-optic";
+import { estimateCost, getModelPricing, normalizeModelName, detectAgentFromCommit, MODEL_PRICING } from "agent-optic";
 
 // Estimate cost for a session (requires SessionMeta — use listWithMeta)
 const session = (await ch.sessions.listWithMeta())[0];
@@ -260,6 +299,16 @@ const cost = estimateCost(session); // USD
 // Look up pricing for a model
 const pricing = getModelPricing("claude-opus-4-6");
 // { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 } per million tokens
+
+// Normalize a model name for pricing lookup
+// Strips provider prefixes, date suffixes, speed qualifiers, and version dots
+normalizeModelName("anthropic/claude-opus-4.6-fast"); // → "claude-opus-4-6"
+normalizeModelName("us.anthropic.claude-sonnet-4-6-20260101:thinking"); // → "claude-sonnet-4-6"
+
+// Detect AI agent from a git commit's author email or username
+// Returns "cursor" | "github-copilot" | "devin" | undefined
+detectAgentFromCommit("cursoragent@cursor.com"); // → "cursor"
+detectAgentFromCommit(undefined, "copilot-swe-agent[bot]"); // → "github-copilot"
 ```
 
 ### Filters
