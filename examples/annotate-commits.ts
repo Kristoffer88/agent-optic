@@ -33,13 +33,6 @@ function fmt(n: number): string {
 	return String(n);
 }
 
-async function git(cwd: string, ...args: string[]): Promise<string> {
-	const proc = Bun.spawn(["git", ...args], { cwd, stdout: "pipe", stderr: "pipe" });
-	const text = await new Response(proc.stdout).text();
-	await proc.exited;
-	return text.trim();
-}
-
 // ── CLI args ──────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -73,7 +66,6 @@ let annotated = 0;
 let skipped = 0;
 
 for (const r of records) {
-	const totalTokens = r.tokens.input + r.tokens.output + r.tokens.cache_read + r.tokens.cache_write;
 	const model = r.models[0] ?? "unknown";
 
 	const note = [
@@ -84,7 +76,6 @@ for (const r of records) {
 		model,
 	].join(" | ");
 
-	// -f overwrites any existing note for this commit
 	const proc = Bun.spawn(["git", "notes", "add", "-f", "-m", note, r.commit], {
 		cwd: repoPath,
 		stdout: "pipe",

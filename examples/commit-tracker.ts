@@ -246,36 +246,35 @@ async function run() {
 
 	const fullCost = matched.reduce((sum, s) => sum + estimateCost(s), 0);
 
-	// Find the highest session snapshot already attributed to this sessionId in prior records.
-	// This lets us store only the DELTA since the last commit in this session — no double counting.
 	const trackingPath = join(repoRoot, TRACKING_FILE);
 	let prior: TokenSnapshot = { cost: 0, tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, messages: 0 };
+	let existingContent = "";
 
-	if (existsSync(trackingPath)) {
-		for (const line of (await Bun.file(trackingPath).text()).trim().split("\n")) {
-			try {
-				const r = JSON.parse(line) as {
-					session_ids?: string[];
-					_session_snapshot?: TokenSnapshot;
-					cost_usd?: number;
-					tokens?: typeof fullTokens;
-					messages?: number;
-				};
-				if (!r.session_ids?.includes(sessionId)) continue;
-				if (r._session_snapshot && r._session_snapshot.cost > prior.cost) {
-					prior = r._session_snapshot;
-				} else if (!r._session_snapshot && r.session_ids.length === 1 && r.cost_usd !== undefined) {
-					// Record written by an older version (no snapshot): cost_usd was the full session cost
-					if (r.cost_usd > prior.cost) {
-						prior = {
-							cost: r.cost_usd,
-							tokens: r.tokens ?? { input: 0, output: 0, cache_read: 0, cache_write: 0 },
-							messages: r.messages ?? 0,
-						};
-					}
+	try { existingContent = await Bun.file(trackingPath).text(); } catch {}
+
+	for (const line of existingContent.trim().split("\n")) {
+		try {
+			const r = JSON.parse(line) as {
+				session_ids?: string[];
+				_session_snapshot?: TokenSnapshot;
+				cost_usd?: number;
+				tokens?: typeof fullTokens;
+				messages?: number;
+			};
+			if (!r.session_ids?.includes(sessionId)) continue;
+			if (r._session_snapshot && r._session_snapshot.cost > prior.cost) {
+				prior = r._session_snapshot;
+			} else if (!r._session_snapshot && r.session_ids.length === 1 && r.cost_usd !== undefined) {
+				// Record written by an older version (no snapshot): cost_usd was the full session cost
+				if (r.cost_usd > prior.cost) {
+					prior = {
+						cost: r.cost_usd,
+						tokens: r.tokens ?? { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+						messages: r.messages ?? 0,
+					};
 				}
-			} catch {}
-		}
+			}
+		} catch {}
 	}
 
 	// Delta: only what was spent since the last commit in this session
@@ -302,8 +301,7 @@ async function run() {
 		_session_snapshot: { cost: fullCost, tokens: fullTokens, messages: fullMessages },
 	};
 
-	// Append to tracking file
-	await Bun.write(trackingPath, (existsSync(trackingPath) ? await Bun.file(trackingPath).text() : "") + JSON.stringify(record) + "\n");
+	await Bun.write(trackingPath, existingContent + JSON.stringify(record) + "\n");
 }
 
 // ── Init (backfill) ──────────────────────────────────────────────────
