@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 /** List all skill names from provider/skills/ */
 export async function readSkills(skillsDir: string): Promise<string[]> {
@@ -19,7 +19,14 @@ export async function readSkillContent(
 	skillsDir: string,
 	name: string,
 ): Promise<string> {
-	const filePath = join(skillsDir, name, "SKILL.md");
+	if (!name || name.includes("/") || name.includes("\\") || name === "." || name === "..") {
+		throw new Error(`Invalid skill name: ${name}`);
+	}
+	const root = resolve(skillsDir);
+	const filePath = resolve(root, name, "SKILL.md");
+	if (!filePath.startsWith(root + sep)) {
+		throw new Error(`Invalid skill name: ${name}`);
+	}
 	const file = Bun.file(filePath);
 	if (!(await file.exists())) {
 		throw new Error(`Skill not found: ${name}`);

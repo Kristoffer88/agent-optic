@@ -1,5 +1,7 @@
 import type { ContentBlock } from "../types/transcript.js";
+import type { PrivacyConfig } from "../types/privacy.js";
 import type { ToolCallSummary } from "../types/session.js";
+import { redactString, shouldRedactStrings } from "../privacy/redact.js";
 import { categorizeToolName, toolDisplayName } from "./tool-categories.js";
 
 /** Extract text content from message content (string or ContentBlock[]). */
@@ -13,29 +15,46 @@ export function extractText(content: string | ContentBlock[] | undefined): strin
 }
 
 /** Extract tool call summaries from content blocks. */
-export function extractToolCalls(content: string | ContentBlock[] | undefined): ToolCallSummary[] {
+export function extractToolCalls(
+	content: string | ContentBlock[] | undefined,
+	privacy?: PrivacyConfig,
+): ToolCallSummary[] {
 	if (!content || typeof content === "string") return [];
 
+	const redact = privacy && shouldRedactStrings(privacy);
 	return content
 		.filter((b): b is ContentBlock & { name: string } => b.type === "tool_use" && !!b.name)
-		.map((b) => ({
-			name: b.name,
-			displayName: toolDisplayName(b.name, b.input as Record<string, unknown> | undefined),
-			category: categorizeToolName(b.name),
-			target: extractToolTarget(b),
-		}));
+		.map((b) => {
+			const input = b.input as Record<string, unknown> | undefined;
+			const displayName = toolDisplayName(b.name, input);
+			const target = extractToolTarget(b);
+			return {
+				name: b.name,
+				displayName: redact ? redactString(displayName, privacy!) : displayName,
+				category: categorizeToolName(b.name),
+				target: target && redact ? redactString(target, privacy!) : target,
+			};
+		});
 }
 
 /** Extract file paths referenced in tool use blocks. */
-export function extractFilePaths(content: string | ContentBlock[] | undefined): string[] {
+export function extractFilePaths(
+	content: string | ContentBlock[] | undefined,
+	privacy?: PrivacyConfig,
+): string[] {
 	if (!content || typeof content === "string") return [];
 
+	const redact = privacy && shouldRedactStrings(privacy);
 	const paths: string[] = [];
 	for (const block of content) {
 		if (block.type !== "tool_use" || !block.input) continue;
 		const input = block.input as Record<string, string>;
-		if (input.file_path) paths.push(input.file_path);
-		if (input.notebook_path) paths.push(input.notebook_path);
+		if (input.file_path) {
+			paths.push(redact ? redactString(input.file_path, privacy!) : input.file_path);
+		}
+		if (input.notebook_path) {
+			paths.push(redact ? redactString(input.notebook_path, privacy!) : input.notebook_path);
+		}
 	}
 	return paths;
 }

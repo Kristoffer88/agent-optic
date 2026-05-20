@@ -4,6 +4,15 @@ import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
 
 const home = homedir();
 
+/** True when any string-level redaction option is active. */
+export function shouldRedactStrings(config: PrivacyConfig): boolean {
+	return (
+		config.redactPatterns.length > 0 ||
+		config.redactHomeDir ||
+		config.redactAbsolutePaths
+	);
+}
+
 /** Apply all configured redaction patterns to a string. */
 export function redactString(text: string, config: PrivacyConfig): string {
 	let result = text;
@@ -40,7 +49,7 @@ function filterContentBlocks(
 		if (config.stripThinking && block.type === "thinking") continue;
 		if (config.stripToolResults && block.type === "tool_result") continue;
 
-		if (block.text && config.redactPatterns.length > 0) {
+		if (block.text && shouldRedactStrings(config)) {
 			filtered.push({ ...block, text: redactString(block.text, config) });
 		} else {
 			filtered.push(block);

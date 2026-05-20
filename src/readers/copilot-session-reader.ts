@@ -4,7 +4,7 @@ import type { SessionDetail, SessionInfo, SessionMeta, ToolCallSummary } from ".
 import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
 import { projectName } from "../utils/paths.js";
 import { toLocalDate } from "../utils/dates.js";
-import { isProjectExcluded, redactString, filterTranscriptEntry } from "../privacy/redact.js";
+import { isProjectExcluded, redactString, shouldRedactStrings, filterTranscriptEntry } from "../privacy/redact.js";
 import { categorizeToolName, toolDisplayName } from "../parsers/tool-categories.js";
 
 // Copilot CLI session layout:
@@ -232,9 +232,10 @@ export async function parseCopilotSessionDetail(
 	const file = Bun.file(eventsPath(sessionsDir, session.sessionId));
 	if (!(await file.exists())) return detail;
 
-	const toolCallSet = new Map<string, ToolCallSummary>();
+	const toolCallList: ToolCallSummary[] = [];
 	const fileSet = new Set<string>();
 	let model: string | undefined;
+	const redact = shouldRedactStrings(privacy);
 
 	try {
 		const text = await file.text();
@@ -270,10 +271,7 @@ export async function parseCopilotSessionDetail(
 
 				const textContent = entry.data?.content;
 				if (typeof textContent === "string" && textContent.length > 20) {
-					const redacted =
-						privacy.redactPatterns.length > 0 || privacy.redactHomeDir
-							? redactString(textContent, privacy)
-							: textContent;
+					const redacted = redact ? redactString(textContent, privacy) : textContent;
 					detail.assistantSummaries.push(
 						redacted.slice(0, 200) + (redacted.length > 200 ? "..." : ""),
 					);
@@ -288,15 +286,16 @@ export async function parseCopilotSessionDetail(
 							req.arguments && typeof req.arguments === "object"
 								? req.arguments
 								: undefined;
-						const displayName = toolDisplayName(name, input);
-						toolCallSet.set(displayName, {
+						const rawDisplayName = toolDisplayName(name, input);
+						const rawTarget = extractToolTarget(name, input);
+						toolCallList.push({
 							name,
-							displayName,
+							displayName: redact ? redactString(rawDisplayName, privacy) : rawDisplayName,
 							category: categorizeToolName(name),
-							target: extractToolTarget(name, input),
+							target: rawTarget && redact ? redactString(rawTarget, privacy) : rawTarget,
 						});
 						const fp = extractFilePath(input);
-						if (fp) fileSet.add(fp);
+						if (fp) fileSet.add(redact ? redactString(fp, privacy) : fp);
 					}
 				}
 			}
@@ -305,7 +304,7 @@ export async function parseCopilotSessionDetail(
 		// file unreadable
 	}
 
-	detail.toolCalls = [...toolCallSet.values()];
+	detail.toolCalls = toolCallList;
 	detail.filesReferenced = [...fileSet];
 	detail.model = model;
 	detail.assistantSummaries = detail.assistantSummaries.slice(0, 10);

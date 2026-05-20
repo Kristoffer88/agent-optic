@@ -5,7 +5,7 @@ import type { SessionDetail, SessionInfo, ToolCallSummary } from "../types/sessi
 import type { TranscriptEntry } from "../types/transcript.js";
 import { encodeProjectPath } from "../utils/paths.js";
 import { canonicalProvider } from "../utils/providers.js";
-import { filterTranscriptEntry, redactString } from "../privacy/redact.js";
+import { filterTranscriptEntry, redactString, shouldRedactStrings } from "../privacy/redact.js";
 import { extractText, extractToolCalls, extractFilePaths, countThinkingBlocks } from "./content-blocks.js";
 import { categorizeToolName, toolDisplayName } from "./tool-categories.js";
 import {
@@ -68,7 +68,7 @@ async function parseClaudeSessionDetail(
 	const text = await file.text();
 	const lines = text.split("\n");
 
-	const toolCallSet = new Map<string, ToolCallSummary>();
+	const toolCallList: ToolCallSummary[] = [];
 	const fileSet = new Set<string>();
 	let gitBranch: string | undefined;
 	let model: string | undefined;
@@ -138,11 +138,11 @@ async function parseClaudeSessionDetail(
 				);
 			}
 
-			for (const tc of extractToolCalls(content)) {
-				toolCallSet.set(tc.displayName, tc);
+			for (const tc of extractToolCalls(content, privacy)) {
+				toolCallList.push(tc);
 			}
 
-			for (const fp of extractFilePaths(content)) {
+			for (const fp of extractFilePaths(content, privacy)) {
 				fileSet.add(fp);
 			}
 
@@ -150,7 +150,7 @@ async function parseClaudeSessionDetail(
 		}
 	}
 
-	detail.toolCalls = [...toolCallSet.values()];
+	detail.toolCalls = toolCallList;
 	detail.filesReferenced = [...fileSet];
 	detail.gitBranch = gitBranch;
 	detail.model = model;
@@ -187,7 +187,7 @@ async function parseCodexSessionDetail(
 	const file = Bun.file(rolloutPath);
 	if (!(await file.exists())) return detail;
 
-	const toolCallSet = new Map<string, ToolCallSummary>();
+	const toolCallList: ToolCallSummary[] = [];
 	const fileSet = new Set<string>();
 	let gitBranch: string | undefined;
 	let model: string | undefined;
@@ -240,10 +240,9 @@ async function parseCodexSessionDetail(
 			) {
 				const summary = parseCodexMessageText(entry.payload?.content);
 				if (summary && summary.length > 20) {
-					const redacted =
-						privacy.redactPatterns.length > 0 || privacy.redactHomeDir
-							? redactString(summary, privacy)
-							: summary;
+					const redacted = shouldRedactStrings(privacy)
+						? redactString(summary, privacy)
+						: summary;
 					detail.assistantSummaries.push(
 						redacted.slice(0, 200) + (redacted.length > 200 ? "..." : ""),
 					);
@@ -256,23 +255,24 @@ async function parseCodexSessionDetail(
 			) {
 				const name = entry.payload.name;
 				const input = parseCodexToolArguments(entry.payload.arguments);
-				const displayName = toolDisplayName(name, input);
-				const target = extractCodexToolTarget(name, input);
+				const redact = shouldRedactStrings(privacy);
+				const rawDisplayName = toolDisplayName(name, input);
+				const rawTarget = extractCodexToolTarget(name, input);
 				const summary: ToolCallSummary = {
 					name,
-					displayName,
+					displayName: redact ? redactString(rawDisplayName, privacy) : rawDisplayName,
 					category: categorizeToolName(name),
-					target,
+					target: rawTarget && redact ? redactString(rawTarget, privacy) : rawTarget,
 				};
-				toolCallSet.set(displayName, summary);
+				toolCallList.push(summary);
 
 				const filePath = extractCodexFilePath(input);
-				if (filePath) fileSet.add(filePath);
+				if (filePath) fileSet.add(redact ? redactString(filePath, privacy) : filePath);
 			}
 		}
 	}
 
-	detail.toolCalls = [...toolCallSet.values()];
+	detail.toolCalls = toolCallList;
 	detail.filesReferenced = [...fileSet];
 	detail.gitBranch = gitBranch;
 	detail.model = model;

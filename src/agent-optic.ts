@@ -18,7 +18,6 @@ import { providerPaths } from "./utils/paths.js";
 import { resolveDateRange } from "./utils/dates.js";
 import { canonicalProvider } from "./utils/providers.js";
 import { resolvePrivacyConfig } from "./privacy/config.js";
-import { setPricing, type ModelPricing } from "./pricing.js";
 
 import { readHistory } from "./readers/history-reader.js";
 import { peekSession, streamTranscript } from "./readers/session-reader.js";
@@ -42,8 +41,6 @@ export interface HistoryConfig {
 	providerDir?: string;
 	/** Privacy profile name or partial config. Defaults to "local" */
 	privacy?: PrivacyProfile | Partial<PrivacyConfig>;
-	/** Override or extend model pricing (USD per million tokens). Merges with built-in defaults. */
-	pricing?: Record<string, ModelPricing>;
 }
 
 export interface History {
@@ -96,10 +93,6 @@ export function createHistory(config?: HistoryConfig): History {
 		provider: requestedProvider,
 		providerDir: config?.providerDir,
 	});
-
-	if (config?.pricing) {
-		setPricing(config.pricing);
-	}
 
 	const privacy: PrivacyConfig =
 		typeof config?.privacy === "string"

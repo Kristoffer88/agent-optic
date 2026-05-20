@@ -3,7 +3,7 @@ import type { PrivacyConfig } from "../types/privacy.js";
 import type { SessionDetail, SessionInfo, SessionMeta, ToolCallSummary } from "../types/session.js";
 import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
 import { projectName } from "../utils/paths.js";
-import { isProjectExcluded, redactString, filterTranscriptEntry } from "../privacy/redact.js";
+import { isProjectExcluded, redactString, shouldRedactStrings, filterTranscriptEntry } from "../privacy/redact.js";
 import { extractText, extractFilePaths, countThinkingBlocks } from "../parsers/content-blocks.js";
 import { categorizeToolName, toolDisplayName } from "../parsers/tool-categories.js";
 
@@ -242,10 +242,11 @@ export async function parsePiSessionDetail(
 	const file = Bun.file(filePath);
 	if (!(await file.exists())) return detail;
 
-	const toolCallSet = new Map<string, ToolCallSummary>();
+	const toolCallList: ToolCallSummary[] = [];
 	const fileSet = new Set<string>();
 	let model: string | undefined;
 	let totalCost = 0;
+	const redact = shouldRedactStrings(privacy);
 
 	try {
 		const text = await file.text();
@@ -296,32 +297,29 @@ export async function parsePiSessionDetail(
 							: undefined;
 						blocks.push({ type: "tool_use", name: block.name, input });
 
-						const displayName = toolDisplayName(block.name, input);
-						const target = extractPiToolTarget(block.name, input);
-						toolCallSet.set(displayName, {
+						const rawDisplayName = toolDisplayName(block.name, input);
+						const rawTarget = extractPiToolTarget(block.name, input);
+						toolCallList.push({
 							name: block.name,
-							displayName,
+							displayName: redact ? redactString(rawDisplayName, privacy) : rawDisplayName,
 							category: categorizeToolName(block.name),
-							target,
+							target: rawTarget && redact ? redactString(rawTarget, privacy) : rawTarget,
 						});
 
 						const fp = extractPiFilePath(input);
-						if (fp) fileSet.add(fp);
+						if (fp) fileSet.add(redact ? redactString(fp, privacy) : fp);
 					}
 				}
 
 				const textContent = extractText(blocks);
 				if (textContent && textContent.length > 20) {
-					const redacted =
-						privacy.redactPatterns.length > 0 || privacy.redactHomeDir
-							? redactString(textContent, privacy)
-							: textContent;
+					const redacted = redact ? redactString(textContent, privacy) : textContent;
 					detail.assistantSummaries.push(
 						redacted.slice(0, 200) + (redacted.length > 200 ? "..." : ""),
 					);
 				}
 
-				for (const fp of extractFilePaths(blocks)) {
+				for (const fp of extractFilePaths(blocks, privacy)) {
 					fileSet.add(fp);
 				}
 
@@ -332,7 +330,7 @@ export async function parsePiSessionDetail(
 		// file unreadable
 	}
 
-	detail.toolCalls = [...toolCallSet.values()];
+	detail.toolCalls = toolCallList;
 	detail.filesReferenced = [...fileSet];
 	detail.model = model;
 	if (totalCost > 0) detail.totalCost = totalCost;

@@ -81,7 +81,12 @@ export async function buildDailyRange(
 		const dateStr = d.toISOString().slice(0, 10);
 		const summary = await buildDailySummary(provider, dateStr, paths, privacy);
 		// Only include days that have activity
-		if (summary.totalSessions > 0 || summary.tasks.length > 0 || summary.plans.length > 0) {
+		if (
+			summary.totalSessions > 0 ||
+			summary.tasks.length > 0 ||
+			summary.plans.length > 0 ||
+			summary.todos.length > 0
+		) {
 			summaries.push(summary);
 		}
 	}

@@ -17,7 +17,7 @@ export function defaultProviderDir(provider: Provider): string {
 }
 
 export function isProvider(value: string): value is Provider {
-	return value in PROVIDER_HOME_DIR;
+	return Object.hasOwn(PROVIDER_HOME_DIR, value);
 }
 
 export function canonicalProvider(provider: Provider): Exclude<Provider, "openai"> {

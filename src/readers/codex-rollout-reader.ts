@@ -72,16 +72,23 @@ export async function readCodexSessionHeader(
 	if (!promise) {
 		promise = (async () => {
 			const rolloutPath = await findRolloutFile(sessionsDir, sessionId);
-			if (!rolloutPath) return {};
+			if (!rolloutPath) {
+				headerCache.delete(key);
+				return {};
+			}
 
 			const file = Bun.file(rolloutPath);
-			if (!(await file.exists())) return {};
+			if (!(await file.exists())) {
+				headerCache.delete(key);
+				return {};
+			}
 
 			let cwd: string | undefined;
 			let gitBranch: string | undefined;
 			let model: string | undefined;
 			let modelProvider: string | undefined;
 
+			let parseFailed = false;
 			try {
 				const text = await file.text();
 				for (const line of text.split("\n")) {
@@ -104,6 +111,11 @@ export async function readCodexSessionHeader(
 					if (cwd && model) break;
 				}
 			} catch {
+				parseFailed = true;
+			}
+
+			if (parseFailed) {
+				headerCache.delete(key);
 				return {};
 			}
 
