@@ -1,6 +1,6 @@
 # Security
 
-`~/.claude/`, `~/.codex/`, `~/.pi/`, and similar provider directories can contain raw assistant session data, including prompts, outputs, tool activity, and file paths.
+`~/.claude/`, `~/.codex/`, `~/.pi/`, `~/.copilot/`, and similar provider directories can contain raw assistant session data, including prompts, outputs, tool activity, and file paths.
 
 ## How this library handles it
 
@@ -12,7 +12,7 @@
 |---------|--------|
 | `local` (default) | Tool results, thinking blocks |
 | `shareable` | + absolute paths, home directory |
-| `strict` | + prompt text, emails, IPs |
+| `strict` | + prompt text, emails, credential patterns, IPs |
 
 Review output before sharing.
 

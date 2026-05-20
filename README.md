@@ -403,14 +403,15 @@ Common agent commands:
 
 ```
 src/
-  agent-optic.ts      # Main factory and runtime API
+  index.ts              # Public API exports
+  agent-optic.ts        # Main factory: createHistory()
   pricing.ts            # Model pricing data and cost estimation
   types/                # Type definitions (one file per domain)
-  readers/              # File readers (history, session, tasks, plans, projects, stats)
+  readers/              # Per-provider file readers (Claude, Codex, Pi, Copilot)
   parsers/              # Session parsing, tool categorization, content extraction
   aggregations/         # Daily/project/tool summaries, time estimation
-  privacy/              # Redaction engine, privacy profiles
-  utils/                # Dates, paths, JSONL streaming
+  privacy/              # Redaction engine, privacy profiles, credential detection
+  utils/                # Dates, paths, providers
   cli/                  # CLI entry point
 examples/               # Standalone scripts showing what the data unlocks
 ```
