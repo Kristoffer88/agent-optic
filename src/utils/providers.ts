@@ -6,8 +6,6 @@ const PROVIDER_HOME_DIR: Record<Provider, string> = {
 	claude: ".claude",
 	codex: ".codex",
 	openai: ".codex",
-	cursor: ".cursor",
-	windsurf: ".windsurf",
 	pi: ".pi",
 	copilot: ".copilot",
 };

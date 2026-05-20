@@ -2,7 +2,7 @@
 
 > Reads local assistant history directories and returns structured JSON — sessions, costs, timesheets, work patterns.
 
-Zero-dependency, local-first TypeScript library for reading session data from provider directories such as `~/.claude/`, `~/.codex/`, `~/.pi/`, `~/.cursor/`, and `~/.windsurf/`.
+Zero-dependency, local-first TypeScript library for reading session data from provider directories such as `~/.claude/`, `~/.codex/`, `~/.pi/`, and `~/.copilot/`.
 
 > **Security Warning**: Provider home directories contain highly sensitive data — API keys, source code, credentials, and personal information may be present in plaintext session files. This library is designed with privacy as the primary concern. See [SECURITY.md](./SECURITY.md).
 
@@ -258,7 +258,7 @@ The public package surface is intentionally small: `createHistory`, core types, 
 
 ```typescript
 const ch = createHistory({
-  provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "cursor" | "windsurf" | "copilot"
+  provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "copilot"
   providerDir: "~/.claude",          // default: provider-specific home directory
   privacy: "local",                  // "local" | "shareable" | "strict" | Partial<PrivacyConfig>
 });
