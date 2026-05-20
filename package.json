@@ -7,8 +7,7 @@
 		".": "./src/index.ts"
 	},
 	"bin": {
-		"agent-optic": "src/cli/index.ts",
-		"claude-optic": "src/cli/index.ts"
+		"agent-optic": "src/cli/index.ts"
 	},
 	"files": [
 		"src",
@@ -39,6 +38,7 @@
 	"engines": {
 		"bun": ">=1.0.0"
 	},
+	"engineStrict": true,
 	"devDependencies": {
 		"@types/bun": "^1.2.2",
 		"knip": "^5.83.1"

@@ -82,6 +82,32 @@ class CliError extends Error {
 	}
 }
 
+const VALUE_OPTIONS = new Set([
+	"--date",
+	"--from",
+	"--to",
+	"--project",
+	"--provider",
+	"--provider-dir",
+	"--privacy",
+	"--format",
+	"--fields",
+	"--limit",
+]);
+
+function takeValue(args: string[], i: number, flag: string): string {
+	const next = args[i + 1];
+	if (next === undefined || VALUE_OPTIONS.has(next) || next === "--pretty" || next === "--raw" || next === "--help" || next === "-h") {
+		throw new CliError(
+			"MISSING_OPTION_VALUE",
+			`Missing value for ${flag}`,
+			2,
+			{ option: flag },
+		);
+	}
+	return next;
+}
+
 function parseArgs(args: string[]): CliArgs {
 	const result: CliArgs = {
 		command: "",
@@ -99,32 +125,39 @@ function parseArgs(args: string[]): CliArgs {
 
 		if (arg === "--help" || arg === "-h") {
 			result.help = true;
-		} else if (arg === "--date" && args[i + 1]) {
-			result.date = args[++i];
-		} else if (arg === "--from" && args[i + 1]) {
-			result.from = args[++i];
-		} else if (arg === "--to" && args[i + 1]) {
-			result.to = args[++i];
-		} else if (arg === "--project" && args[i + 1]) {
-			result.project = args[++i];
-		} else if (arg === "--provider" && args[i + 1]) {
-			result.provider = args[++i] as Provider;
-		} else if (arg === "--provider-dir" && args[i + 1]) {
-			result.providerDir = args[++i];
-		} else if (arg === "--privacy" && args[i + 1]) {
-			result.privacy = args[++i] as PrivacyProfile;
-		} else if (arg === "--format" && args[i + 1]) {
-			result.format = args[++i] as OutputFormat;
-		} else if (arg === "--fields" && args[i + 1]) {
-			result.fields = args[++i]
+		} else if (arg === "--date") {
+			result.date = takeValue(args, i++, arg);
+		} else if (arg === "--from") {
+			result.from = takeValue(args, i++, arg);
+		} else if (arg === "--to") {
+			result.to = takeValue(args, i++, arg);
+		} else if (arg === "--project") {
+			result.project = takeValue(args, i++, arg);
+		} else if (arg === "--provider") {
+			result.provider = takeValue(args, i++, arg) as Provider;
+		} else if (arg === "--provider-dir") {
+			result.providerDir = takeValue(args, i++, arg);
+		} else if (arg === "--privacy") {
+			result.privacy = takeValue(args, i++, arg) as PrivacyProfile;
+		} else if (arg === "--format") {
+			result.format = takeValue(args, i++, arg) as OutputFormat;
+		} else if (arg === "--fields") {
+			result.fields = takeValue(args, i++, arg)
 				.split(",")
 				.map((f) => f.trim())
 				.filter(Boolean);
-		} else if (arg === "--limit" && args[i + 1]) {
-			const parsed = Number.parseInt(args[++i], 10);
-			if (Number.isFinite(parsed) && parsed > 0) {
-				result.limit = parsed;
+		} else if (arg === "--limit") {
+			const raw = takeValue(args, i++, arg);
+			const parsed = Number.parseInt(raw, 10);
+			if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== raw.trim()) {
+				throw new CliError(
+					"INVALID_LIMIT",
+					`Invalid --limit value: ${raw}. Must be a positive integer.`,
+					2,
+					{ value: raw },
+				);
 			}
+			result.limit = parsed;
 		} else if (arg === "--pretty") {
 			result.pretty = true;
 		} else if (arg === "--raw") {
@@ -387,8 +420,9 @@ async function run(args: CliArgs): Promise<void> {
 }
 
 async function main() {
-	const args = parseArgs(process.argv.slice(2));
+	let args: CliArgs | undefined;
 	try {
+		args = parseArgs(process.argv.slice(2));
 		await run(args);
 	} catch (err) {
 		if (err instanceof CliError) {

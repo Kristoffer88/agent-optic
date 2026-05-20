@@ -20,8 +20,6 @@ import { homedir } from "node:os";
 
 const MARKER_START = "# agent-optic: ai-usage-tracker";
 const MARKER_END = "# end agent-optic";
-const LEGACY_MARKER_START = "# claude-optic: ai-usage-tracker";
-const LEGACY_MARKER_END = "# end claude-optic";
 const TRACKING_FILE = ".ai-usage.jsonl";
 const WINDOW_MINUTES = 30;
 
@@ -55,7 +53,7 @@ async function install() {
 	if (existsSync(hookPath)) {
 		const existing = await Bun.file(hookPath).text();
 
-		if (existing.includes(MARKER_START) || existing.includes(LEGACY_MARKER_START)) {
+		if (existing.includes(MARKER_START)) {
 			console.log("Hook already installed.");
 			return;
 		}
@@ -83,7 +81,7 @@ async function uninstall() {
 	}
 
 	const existing = await Bun.file(hookPath).text();
-	if (!existing.includes(MARKER_START) && !existing.includes(LEGACY_MARKER_START)) {
+	if (!existing.includes(MARKER_START)) {
 		console.log("Hook not installed by commit-tracker.");
 		return;
 	}
@@ -93,8 +91,8 @@ async function uninstall() {
 	const filtered: string[] = [];
 	let inside = false;
 	for (const line of lines) {
-		if (line.trim() === MARKER_START || line.trim() === LEGACY_MARKER_START) { inside = true; continue; }
-		if (line.trim() === MARKER_END || line.trim() === LEGACY_MARKER_END) { inside = false; continue; }
+		if (line.trim() === MARKER_START) { inside = true; continue; }
+		if (line.trim() === MARKER_END) { inside = false; continue; }
 		if (!inside) filtered.push(line);
 	}
 

@@ -23,6 +23,8 @@ bunx --silent agent-optic sessions
 
 ## Install
 
+**Requires [Bun](https://bun.sh) ≥ 1.0.** This package ships TypeScript source and a Bun shebang for the CLI; it does not run under Node.
+
 ```bash
 bun add agent-optic
 ```

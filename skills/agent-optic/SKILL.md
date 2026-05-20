@@ -5,12 +5,12 @@ description: Read AI assistant session data from local provider directories. Use
 
 # Session History with agent-optic
 
-agent-optic reads AI assistant session data from local provider directories (`~/.claude`, `~/.codex`, `~/.pi`, `~/.cursor`, `~/.windsurf`).
+agent-optic reads AI assistant session data from local provider directories (`~/.claude`, `~/.codex`, `~/.pi`, `~/.copilot`).
 All data stays local. Zero dependencies. No network access.
 
 Output is structured JSON. Use `--raw` for data-only output. Use `--pretty` for readability. Use `--format jsonl` for streaming large results.
 
-Supported providers: `claude` (default), `codex`, `openai`, `pi`, `cursor`, `windsurf`.
+Supported providers: `claude` (default), `codex`, `openai`, `pi`, `copilot`.
 
 ## Core Workflow
 
@@ -56,7 +56,7 @@ agent-optic sessions <session-id> --raw --pretty
 
 # Different provider
 agent-optic sessions --provider codex --raw --pretty
-agent-optic sessions --provider cursor --raw --pretty
+agent-optic sessions --provider copilot --raw --pretty
 ```
 
 ### Session Detail
@@ -197,7 +197,7 @@ agent-optic detail <session-id> --raw --pretty
 ```bash
 agent-optic sessions --provider claude --from 2026-02-01 --raw --pretty
 agent-optic sessions --provider codex --from 2026-02-01 --raw --pretty
-agent-optic sessions --provider cursor --from 2026-02-01 --raw --pretty
+agent-optic sessions --provider copilot --from 2026-02-01 --raw --pretty
 ```
 
 ### Export data for sharing
@@ -246,8 +246,7 @@ Combine `--raw --pretty` for readable data-only output. Combine `--raw --fields`
 | Codex | `--provider codex` | `~/.codex` | OpenAI Codex CLI |
 | OpenAI | `--provider openai` | `~/.codex` | Alias for codex format |
 | Pi | `--provider pi` | `~/.pi` | No history.jsonl — sessions discovered by directory scan |
-| Cursor | `--provider cursor` | `~/.cursor` | Cursor IDE |
-| Windsurf | `--provider windsurf` | `~/.windsurf` | Windsurf IDE |
+| Copilot | `--provider copilot` | `~/.copilot` | GitHub Copilot CLI |
 
 Override the data directory with `--provider-dir <path>` for non-standard installations.
 
