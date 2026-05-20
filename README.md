@@ -112,6 +112,25 @@ Compact session summaries as JSON — first prompt, branch, model, token counts,
 bun examples/session-digest.ts --days 7 | your-llm-cli "which sessions were the most productive?"
 ```
 
+### Retrospective
+
+Dump the current session as JSON so the agent can look at its own data and propose take-aways. The "Retrospective Knowledge Capture" pattern: decouple *flagging* (individual, in-the-moment) from *solving* (team, on a cadence). Works with any supported provider — Claude Code, Codex, Copilot, Pi.
+
+```bash
+# Auto-detects session id from CLAUDE_CODE_SESSION_ID / CODEX_COMPANION_SESSION_ID
+# Then ask the agent: "Look at the data for the current session. What take-aways could we make?"
+bun examples/retrospective.ts
+
+# Pipe to any LLM CLI
+bun examples/retrospective.ts | your-llm-cli "what could have gone better in this session?"
+
+# Explicit session + provider (claude | codex | openai | pi | copilot)
+bun examples/retrospective.ts --provider codex --session <id>
+bun examples/retrospective.ts --provider copilot --session <id>
+```
+
+The output includes prompts, assistant summaries, tool-call breakdown, files touched, and cost — enough for the agent to spot redirects, wasted tool calls, and missing context. A common follow-up is to file each take-away as a labelled GitHub issue (`gh issue create -l agent-retrospective`) so the team can review them weekly and convert them into changes to skills, agent instructions (`CLAUDE.md` / `AGENTS.md` / `.cursorrules` / etc.), tests, or tooling.
+
 ### Work Patterns
 
 Aggregated work pattern metrics as JSON — hour distribution, late-night/weekend counts, longest and most expensive sessions.
