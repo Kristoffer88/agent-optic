@@ -14,7 +14,7 @@ import type {
 	SessionListFilter,
 } from "./types/aggregations.js";
 
-import { providerPaths } from "./utils/paths.js";
+import { providerPaths, unknownProject } from "./utils/paths.js";
 import { resolveDateRange } from "./utils/dates.js";
 import { canonicalProvider } from "./utils/providers.js";
 import { resolvePrivacyConfig } from "./privacy/config.js";
@@ -165,7 +165,7 @@ export function createHistory(config?: HistoryConfig): History {
 				}
 
 				if (!session) {
-					const effectiveProjectPath = projectPath ?? `(unknown)/${sessionId}`;
+					const effectiveProjectPath = projectPath ?? unknownProject(sessionId);
 					session = {
 						sessionId,
 						project: effectiveProjectPath,
@@ -190,7 +190,7 @@ export function createHistory(config?: HistoryConfig): History {
 				yield* streamTranscript(
 					provider,
 					sessionId,
-					projectPath ?? `(unknown)/${sessionId}`,
+					projectPath ?? unknownProject(sessionId),
 					{
 						projectsDir: paths.projectsDir,
 						sessionsDir: paths.sessionsDir,

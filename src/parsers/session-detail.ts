@@ -1,13 +1,13 @@
-import { join } from "node:path";
 import type { PrivacyConfig } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import type { SessionDetail, SessionInfo, ToolCallSummary } from "../types/session.js";
 import type { TranscriptEntry } from "../types/transcript.js";
-import { encodeProjectPath } from "../utils/paths.js";
+import { isUnknownProject, projectName } from "../utils/paths.js";
 import { canonicalProvider } from "../utils/providers.js";
 import { filterTranscriptEntry, redactString, shouldRedactStrings } from "../privacy/redact.js";
 import { extractText, extractToolCalls, extractFilePaths, countThinkingBlocks } from "./content-blocks.js";
 import { categorizeToolName, toolDisplayName } from "./tool-categories.js";
+import { resolveClaudeSessionFile } from "../readers/session-reader.js";
 import {
 	findRolloutFile,
 	parseCodexMessageText,
@@ -59,10 +59,13 @@ async function parseClaudeSessionDetail(
 		hasSidechains: false,
 	};
 
-	const encoded = encodeProjectPath(session.project);
-	const filePath = join(projectsDir, encoded, `${session.sessionId}.jsonl`);
+	const filePath = await resolveClaudeSessionFile(
+		projectsDir,
+		session.project,
+		session.sessionId,
+	);
+	if (!filePath) return detail;
 	const file = Bun.file(filePath);
-
 	if (!(await file.exists())) return detail;
 
 	const text = await file.text();
@@ -90,6 +93,12 @@ async function parseClaudeSessionDetail(
 		// Track sidechains
 		if (filtered.isSidechain) {
 			detail.hasSidechains = true;
+		}
+
+		// Recover project/cwd if it was unknown (e.g. resolved without history.jsonl)
+		if (isUnknownProject(detail.project) && entry.cwd) {
+			detail.project = entry.cwd;
+			detail.projectName = projectName(entry.cwd);
 		}
 
 		// Extract git branch

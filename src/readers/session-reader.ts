@@ -3,7 +3,7 @@ import type { PrivacyConfig } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import type { SessionInfo, SessionMeta } from "../types/session.js";
 import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
-import { encodeProjectPath } from "../utils/paths.js";
+import { encodeProjectPath, isUnknownProject, projectName } from "../utils/paths.js";
 import { canonicalProvider } from "../utils/providers.js";
 import { filterTranscriptEntry } from "../privacy/redact.js";
 import {
@@ -13,6 +13,36 @@ import {
 } from "./codex-rollout-reader.js";
 import { peekPiSession, streamPiTranscript } from "./pi-session-reader.js";
 import { peekCopilotSession, streamCopilotTranscript } from "./copilot-session-reader.js";
+
+/**
+ * Locate a Claude session file by sessionId, regardless of project encoding.
+ *
+ * The encoded project path (cwd with `/` → `-`) is the fast lookup, but it
+ * fails whenever the project is unknown (e.g. no history.jsonl) or the cwd
+ * encoding is ambiguous. Session files are always named `<sessionId>.jsonl`,
+ * so a glob over the projects dir resolves them unambiguously.
+ */
+async function findClaudeSessionFile(
+	projectsDir: string,
+	sessionId: string,
+): Promise<string | undefined> {
+	const glob = new Bun.Glob(`*/${sessionId}.jsonl`);
+	for await (const rel of glob.scan({ cwd: projectsDir, absolute: false })) {
+		return join(projectsDir, rel);
+	}
+	return undefined;
+}
+
+/** Resolve a Claude session file: try the encoded project path, then fall back to a glob. */
+export async function resolveClaudeSessionFile(
+	projectsDir: string,
+	project: string,
+	sessionId: string,
+): Promise<string | undefined> {
+	const direct = join(projectsDir, encodeProjectPath(project), `${sessionId}.jsonl`);
+	if (await Bun.file(direct).exists()) return direct;
+	return findClaudeSessionFile(projectsDir, sessionId);
+}
 
 /**
  * Peek session metadata from a session JSONL file.
@@ -51,8 +81,12 @@ async function peekClaudeSession(
 		messageCount: 0,
 	};
 
-	const encoded = encodeProjectPath(session.project);
-	const filePath = join(projectsDir, encoded, `${session.sessionId}.jsonl`);
+	const filePath = await resolveClaudeSessionFile(
+		projectsDir,
+		session.project,
+		session.sessionId,
+	);
+	if (!filePath) return meta;
 	const file = Bun.file(filePath);
 	if (!(await file.exists())) return meta;
 
@@ -62,6 +96,12 @@ async function peekClaudeSession(
 			if (!line.trim()) continue;
 			try {
 				const entry = JSON.parse(line) as TranscriptEntry;
+
+				// Recover project/cwd if it was unknown (e.g. discovered without history.jsonl)
+				if (isUnknownProject(meta.project) && entry.cwd) {
+					meta.project = entry.cwd;
+					meta.projectName = projectName(entry.cwd);
+				}
 
 				// Extract git branch from first occurrence
 				if (!meta.gitBranch && entry.gitBranch && entry.gitBranch !== "HEAD") {
@@ -203,8 +243,8 @@ async function* streamClaudeTranscript(
 	projectsDir: string,
 	privacy: PrivacyConfig,
 ): AsyncGenerator<TranscriptEntry> {
-	const encoded = encodeProjectPath(projectPath);
-	const filePath = join(projectsDir, encoded, `${sessionId}.jsonl`);
+	const filePath = await resolveClaudeSessionFile(projectsDir, projectPath, sessionId);
+	if (!filePath) return;
 	const file = Bun.file(filePath);
 	if (!(await file.exists())) return;
 

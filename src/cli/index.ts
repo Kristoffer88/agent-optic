@@ -5,6 +5,7 @@ import type { PrivacyProfile } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import { today } from "../utils/dates.js";
 import { defaultProviderDir, isProvider } from "../utils/providers.js";
+import { renderPiAgentBoard, type PiAgentBoardSession } from "../boards/pi-agent-board.js";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -24,6 +25,7 @@ COMMANDS
   stats                    Show pre-computed stats
   daily                    Show daily summary
   export                   Export session data with privacy controls
+  pi-board                 Generate a local HTML board for Pi sessions
 
 OPTIONS
   --date YYYY-MM-DD     Filter to specific date (default: today)
@@ -38,6 +40,7 @@ OPTIONS
   --limit <n>           Limit array/stream length
   --pretty              Pretty-print JSON output
   --raw                 Disable output envelope (data only)
+  --out <file>          Output file for commands that generate files (pi-board)
   --help                Show this help
 
 EXAMPLES
@@ -47,6 +50,7 @@ EXAMPLES
   agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
   agent-optic sessions --provider codex --date 2026-02-09
   agent-optic sessions --provider openai --date 2026-02-09
+  agent-optic pi-board --date 2026-06-05 --out ~/work/.pi/agent-board/index.html
 
 SECURITY
   Provider home directories contain highly sensitive data including API keys, source code,
@@ -66,6 +70,7 @@ interface CliArgs {
 	format: OutputFormat;
 	fields?: string[];
 	limit?: number;
+	out?: string;
 	pretty: boolean;
 	raw: boolean;
 	help: boolean;
@@ -93,6 +98,7 @@ const VALUE_OPTIONS = new Set([
 	"--format",
 	"--fields",
 	"--limit",
+	"--out",
 ]);
 
 function takeValue(args: string[], i: number, flag: string): string {
@@ -158,6 +164,8 @@ function parseArgs(args: string[]): CliArgs {
 				);
 			}
 			result.limit = parsed;
+		} else if (arg === "--out") {
+			result.out = takeValue(args, i++, arg);
 		} else if (arg === "--pretty") {
 			result.pretty = true;
 		} else if (arg === "--raw") {
@@ -290,6 +298,8 @@ async function run(args: CliArgs): Promise<void> {
 		process.exit(args.help ? 0 : 1);
 	}
 
+	if (args.command === "pi-board") args.provider = "pi";
+
 	assertValidArgs(args);
 
 	const providerDir = args.providerDir ?? defaultProviderDir(args.provider);
@@ -407,6 +417,35 @@ async function run(args: CliArgs): Promise<void> {
 			const to = args.to ?? date ?? today();
 			const summaries = await ch.aggregate.dailyRange(from, to);
 			writeOutput("export", args.provider, summaries, args);
+			return;
+		}
+
+		case "pi-board": {
+			const out = args.out;
+			if (!out) {
+				throw new CliError(
+					"MISSING_OPTION_VALUE",
+					"Missing --out <file>. Usage: agent-optic pi-board --out ~/work/.pi/agent-board/index.html",
+					2,
+				);
+			}
+			const sessions = (await ch.sessions.listWithMeta(filter)).sort((a, b) => (b.timeRange.end ?? 0) - (a.timeRange.end ?? 0));
+			const limited = sessions.slice(0, args.limit ?? 50);
+			const boardSessions: PiAgentBoardSession[] = [];
+			for (const session of limited) {
+				try {
+					const detail = await ch.sessions.detail(session.sessionId, session.project);
+					boardSessions.push({ ...session, detail });
+				} catch {
+					boardSessions.push(session);
+				}
+			}
+			const html = renderPiAgentBoard(boardSessions, {
+				from: args.from ?? args.date,
+				to: args.to ?? args.date,
+			});
+			await Bun.write(out, html);
+			writeOutput("pi-board", args.provider, { path: out, sessions: boardSessions.length }, args);
 			return;
 		}
 

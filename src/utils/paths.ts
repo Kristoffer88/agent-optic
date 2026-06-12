@@ -17,6 +17,16 @@ export function projectName(projectPath: string): string {
 	return projectPath.split("/").pop() || projectPath;
 }
 
+/** Synthetic placeholder used when a session's project/cwd is not yet known. */
+export function unknownProject(sessionId: string): string {
+	return `(unknown)/${sessionId}`;
+}
+
+/** True for the synthetic `(unknown)/…` placeholder produced when no cwd is known. */
+export function isUnknownProject(projectPath: string | undefined): boolean {
+	return !projectPath || projectPath.startsWith("(unknown)");
+}
+
 interface ProviderPaths {
 	base: string;
 	historyFile: string;
