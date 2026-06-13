@@ -15,6 +15,8 @@ export interface SessionInfo {
 	prompts: string[];
 	promptTimestamps: number[];
 	timeRange: { start: number; end: number };
+	/** Transcript/session file mtime in epoch ms when available. Useful for active-session discovery. */
+	lastFileActivity?: number;
 }
 
 /** Session with metadata peeked from the session JSONL file (first+last lines). */

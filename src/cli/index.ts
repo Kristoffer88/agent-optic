@@ -10,6 +10,7 @@ import { renderPiAgentBoard, type PiAgentBoardSession } from "../boards/pi-agent
 const SCHEMA_VERSION = "1.0";
 
 type OutputFormat = "json" | "jsonl";
+type SessionSort = "recent" | "mtime" | "start" | "end";
 
 const HELP = `agent-optic — Read AI assistant session data from local provider directories
 
@@ -37,6 +38,7 @@ OPTIONS
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --format <mode>       Output mode: json (default), jsonl
   --fields <a,b,c>      Select object fields (top-level)
+  --sort <mode>         Sort sessions: recent (default), mtime, start, end
   --limit <n>           Limit array/stream length
   --pretty              Pretty-print JSON output
   --raw                 Disable output envelope (data only)
@@ -69,6 +71,7 @@ interface CliArgs {
 	privacy: PrivacyProfile;
 	format: OutputFormat;
 	fields?: string[];
+	sort: SessionSort;
 	limit?: number;
 	out?: string;
 	pretty: boolean;
@@ -97,6 +100,7 @@ const VALUE_OPTIONS = new Set([
 	"--privacy",
 	"--format",
 	"--fields",
+	"--sort",
 	"--limit",
 	"--out",
 ]);
@@ -120,6 +124,7 @@ function parseArgs(args: string[]): CliArgs {
 		provider: "claude",
 		privacy: "local",
 		format: "json",
+		sort: "recent",
 		pretty: false,
 		raw: false,
 		help: false,
@@ -152,6 +157,8 @@ function parseArgs(args: string[]): CliArgs {
 				.split(",")
 				.map((f) => f.trim())
 				.filter(Boolean);
+		} else if (arg === "--sort") {
+			result.sort = takeValue(args, i++, arg) as SessionSort;
 		} else if (arg === "--limit") {
 			const raw = takeValue(args, i++, arg);
 			const parsed = Number.parseInt(raw, 10);
@@ -182,6 +189,96 @@ function parseArgs(args: string[]): CliArgs {
 	return result;
 }
 
+const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
+	sessions: [
+		"sessionId",
+		"project",
+		"projectName",
+		"prompts",
+		"promptTimestamps",
+		"timeRange",
+		"lastFileActivity",
+		"gitBranch",
+		"model",
+		"totalInputTokens",
+		"totalOutputTokens",
+		"cacheCreationInputTokens",
+		"cacheReadInputTokens",
+		"messageCount",
+		"totalCost",
+	],
+	detail: [
+		"sessionId",
+		"project",
+		"projectName",
+		"prompts",
+		"promptTimestamps",
+		"timeRange",
+		"lastFileActivity",
+		"gitBranch",
+		"model",
+		"totalInputTokens",
+		"totalOutputTokens",
+		"cacheCreationInputTokens",
+		"cacheReadInputTokens",
+		"messageCount",
+		"totalCost",
+		"assistantSummaries",
+		"toolCalls",
+		"filesReferenced",
+		"planReferenced",
+		"thinkingBlockCount",
+		"hasSidechains",
+	],
+	transcript: [
+		"type",
+		"subtype",
+		"message",
+		"timestamp",
+		"gitBranch",
+		"planContent",
+		"cwd",
+		"sessionId",
+		"isSidechain",
+		"parentUuid",
+		"uuid",
+		"toolUseResult",
+		"isMeta",
+		"durationMs",
+		"error",
+		"isApiErrorMessage",
+		"version",
+		"slug",
+		"agentId",
+		"userType",
+	],
+	"pi-board": ["path", "sessions"],
+};
+
+function availableTopLevelFields(command: string, data: unknown): Set<string> {
+	const fields = new Set<string>(KNOWN_TOP_LEVEL_FIELDS[command] ?? []);
+	const rows = Array.isArray(data) ? data : [data];
+	for (const row of rows) {
+		if (!row || typeof row !== "object") continue;
+		for (const key of Object.keys(row as Record<string, unknown>)) fields.add(key);
+	}
+	return fields;
+}
+
+function assertKnownFields(command: string, data: unknown, fields?: string[]): void {
+	if (!fields || fields.length === 0) return;
+	const available = availableTopLevelFields(command, data);
+	if (available.size === 0) return;
+	const unknown = fields.filter((field) => !available.has(field));
+	if (unknown.length === 0) return;
+	throw new CliError(
+		"UNKNOWN_FIELDS",
+		`Unknown --fields value(s): ${unknown.join(", ")}. Valid top-level fields include: ${[...available].sort().join(", ")}`,
+		2,
+		{ fields: unknown, availableFields: [...available].sort() },
+	);
+}
+
 function applyFieldSelection(data: unknown, fields?: string[]): unknown {
 	if (!fields || fields.length === 0) return data;
 
@@ -204,12 +301,31 @@ function applyLimit(data: unknown, limit?: number): unknown {
 	return data;
 }
 
+function sessionSortValue(session: Record<string, any>, sort: SessionSort): number {
+	const start = Number(session.timeRange?.start ?? 0);
+	const end = Number(session.timeRange?.end ?? 0);
+	const mtime = Number(session.lastFileActivity ?? 0);
+	if (sort === "mtime") return mtime || end || start;
+	if (sort === "start") return start;
+	if (sort === "end") return end || start;
+	return Math.max(mtime, end, start);
+}
+
+function sortSessions<T extends Record<string, any>>(sessions: T[], sort: SessionSort): T[] {
+	return [...sessions].sort((a, b) => {
+		const diff = sessionSortValue(b, sort) - sessionSortValue(a, sort);
+		if (diff !== 0) return diff;
+		return String(a.sessionId ?? "").localeCompare(String(b.sessionId ?? ""));
+	});
+}
+
 function writeOutput(
 	command: string,
 	provider: Provider,
 	data: unknown,
 	args: CliArgs,
 ): void {
+	assertKnownFields(command, data, args.fields);
 	const transformed = applyLimit(applyFieldSelection(data, args.fields), args.limit);
 	const generatedAt = new Date().toISOString();
 
@@ -290,6 +406,14 @@ function assertValidArgs(args: CliArgs): void {
 			`Invalid format: ${args.format}. Use: json, jsonl`,
 		);
 	}
+
+	if (!["recent", "mtime", "start", "end"].includes(args.sort)) {
+		throw new CliError(
+			"INVALID_SORT",
+			`Invalid sort: ${args.sort}. Use: recent, mtime, start, end`,
+			2,
+		);
+	}
 }
 
 async function run(args: CliArgs): Promise<void> {
@@ -326,7 +450,7 @@ async function run(args: CliArgs): Promise<void> {
 			if (args.commandArg) {
 				sessions = sessions.filter((s) => s.sessionId === args.commandArg);
 			}
-			writeOutput("sessions", args.provider, sessions, args);
+			writeOutput("sessions", args.provider, sortSessions(sessions, args.sort), args);
 			return;
 		}
 
@@ -351,6 +475,7 @@ async function run(args: CliArgs): Promise<void> {
 			}
 
 			if (args.format === "jsonl") {
+				assertKnownFields("transcript", undefined, args.fields);
 				const generatedAt = new Date().toISOString();
 				let count = 0;
 				for await (const entry of ch.sessions.transcript(args.commandArg, args.project)) {

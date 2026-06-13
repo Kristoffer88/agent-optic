@@ -89,6 +89,7 @@ async function peekClaudeSession(
 	if (!filePath) return meta;
 	const file = Bun.file(filePath);
 	if (!(await file.exists())) return meta;
+	if (file.lastModified) meta.lastFileActivity = file.lastModified;
 
 	try {
 		const text = await file.text();

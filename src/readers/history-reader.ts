@@ -245,6 +245,7 @@ async function scanClaudeProjects(
 			prompts: prompts.length > 0 ? prompts : ["(no prompt)"],
 			promptTimestamps: promptTimestamps.length > 0 ? promptTimestamps : [start],
 			timeRange: { start, end },
+			lastFileActivity: mtime || undefined,
 		});
 	}
 

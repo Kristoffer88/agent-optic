@@ -386,12 +386,17 @@ bunx --silent agent-optic tool-usage --provider codex --from 2026-02-01 --to 202
 # Daily summary
 bunx --silent agent-optic daily --date 2026-02-09
 
+# Recent Claude Code sessions (default sort uses transcript mtime when available)
+bunx --silent agent-optic sessions --provider claude --date 2026-02-09 --limit 5 --fields sessionId,project,timeRange,lastFileActivity
+
 # Raw output without envelope
 bunx --silent agent-optic sessions --provider claude --date 2026-02-09 --raw
 ```
 
 `--format json` returns a stable envelope (`schemaVersion`, `command`, `provider`, `generatedAt`, `data`) by default.
 Use `--raw` for data-only output and `--format jsonl` for one JSON object per line.
+`sessions` defaults to `--sort recent` (newest of `lastFileActivity`, `timeRange.end`, `timeRange.start`) before applying `--limit`; use `--sort mtime|start|end|recent` to be explicit.
+`--fields` selects top-level fields and fails fast if a requested field is unknown.
 
 Common agent commands:
 - `sessions [session-id?]` list sessions (or filter to one ID)
