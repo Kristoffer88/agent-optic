@@ -341,7 +341,7 @@ detectAgentFromCommit(undefined, "copilot-swe-agent[bot]"); // → "github-copil
 { from: "2026-02-01" }                    // From date to today
 
 // Session filter (extends DateFilter)
-{ date: "2026-02-09", project: "my-app" } // Filter by project name
+{ date: "2026-02-09", project: "my-app" } // Filter by project name or full path
 ```
 
 ## Privacy Profiles

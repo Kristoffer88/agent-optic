@@ -5,6 +5,7 @@ import type { ToolCategory } from "../types/session.js";
 import { readHistory } from "../readers/history-reader.js";
 import { parseSessionDetail } from "../parsers/session-detail.js";
 import { resolveDateRange } from "../utils/dates.js";
+import { matchesProjectFilter } from "../utils/paths.js";
 
 /** Build a tool usage report from session data. */
 export async function buildToolUsageReport(
@@ -27,6 +28,7 @@ export async function buildToolUsageReport(
 	let total = 0;
 
 	for (const session of sessions) {
+		if (!matchesProjectFilter(session.project, session.projectName, filter.project)) continue;
 		if (session.prompts.length < 2) continue; // skip trivial sessions
 		const detail = await parseSessionDetail(provider, session, paths, privacy);
 

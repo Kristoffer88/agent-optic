@@ -14,7 +14,7 @@ import type {
 	SessionListFilter,
 } from "./types/aggregations.js";
 
-import { providerPaths, unknownProject } from "./utils/paths.js";
+import { matchesProjectFilter, providerPaths, unknownProject } from "./utils/paths.js";
 import { resolveDateRange } from "./utils/dates.js";
 import { canonicalProvider } from "./utils/providers.js";
 import { resolvePrivacyConfig } from "./privacy/config.js";
@@ -118,8 +118,9 @@ export function createHistory(config?: HistoryConfig): History {
 				});
 
 				if (filter?.project) {
-					const f = filter.project.toLowerCase();
-					sessions = sessions.filter((s) => s.projectName.toLowerCase().includes(f));
+					sessions = sessions.filter((s) =>
+						matchesProjectFilter(s.project, s.projectName, filter.project),
+					);
 				}
 
 				return sessions;
@@ -133,8 +134,9 @@ export function createHistory(config?: HistoryConfig): History {
 				});
 
 				if (filter?.project) {
-					const f = filter.project.toLowerCase();
-					sessions = sessions.filter((s) => s.projectName.toLowerCase().includes(f));
+					sessions = sessions.filter((s) =>
+						matchesProjectFilter(s.project, s.projectName, filter.project),
+					);
 				}
 
 				return Promise.all(
@@ -206,8 +208,9 @@ export function createHistory(config?: HistoryConfig): History {
 					sessionsDir: paths.sessionsDir,
 				});
 				if (filter?.project) {
-					const f = filter.project.toLowerCase();
-					return sessions.filter((s) => s.projectName.toLowerCase().includes(f)).length;
+					return sessions.filter((s) =>
+						matchesProjectFilter(s.project, s.projectName, filter.project),
+					).length;
 				}
 				return sessions.length;
 			},

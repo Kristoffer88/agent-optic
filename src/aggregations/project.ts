@@ -5,6 +5,7 @@ import type { SessionInfo, ToolCallSummary } from "../types/session.js";
 import { readHistory } from "../readers/history-reader.js";
 import { parseSessionDetail } from "../parsers/session-detail.js";
 import { resolveDateRange } from "../utils/dates.js";
+import { matchesProjectFilter } from "../utils/paths.js";
 import { estimateHours } from "./time.js";
 
 /** Build per-project summaries from session data. */
@@ -25,7 +26,7 @@ export async function buildProjectSummaries(
 	const byProject = new Map<string, SessionInfo[]>();
 	for (const session of sessions) {
 		const name = session.projectName;
-		if (filter.project && !name.toLowerCase().includes(filter.project.toLowerCase())) continue;
+		if (!matchesProjectFilter(session.project, name, filter.project)) continue;
 		const existing = byProject.get(name);
 		if (existing) {
 			existing.push(session);

@@ -32,7 +32,7 @@ OPTIONS
   --date YYYY-MM-DD     Filter to specific date (default: today)
   --from YYYY-MM-DD     Start of date range
   --to YYYY-MM-DD       End of date range
-  --project <name>      Filter by project name
+  --project <name|path> Filter by project name or full path
   --provider <name>     Data provider: claude (default), codex, openai, pi, copilot
   --provider-dir <path> Override provider data directory (default: ~/.<provider>)
   --privacy <profile>   Privacy profile: local (default), shareable, strict
@@ -297,8 +297,21 @@ function applyFieldSelection(data: unknown, fields?: string[]): unknown {
 
 function applyLimit(data: unknown, limit?: number): unknown {
 	if (!limit) return data;
-	if (Array.isArray(data)) return data.slice(0, limit);
-	return data;
+	if (Array.isArray(data)) {
+		return data.slice(0, limit).map((item) => applyLimit(item, limit));
+	}
+	if (data instanceof Map) {
+		return new Map(
+			[...data.entries()].map(([key, value]) => [key, applyLimit(value, limit)]),
+		);
+	}
+	if (!data || typeof data !== "object") return data;
+	return Object.fromEntries(
+		Object.entries(data as Record<string, unknown>).map(([key, value]) => [
+			key,
+			applyLimit(value, limit),
+		]),
+	);
 }
 
 function sessionSortValue(session: Record<string, any>, sort: SessionSort): number {

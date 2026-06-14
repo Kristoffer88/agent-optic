@@ -48,7 +48,7 @@ agent-optic sessions --date 2026-02-15 --raw --pretty
 # Date range
 agent-optic sessions --from 2026-02-01 --to 2026-02-28 --raw --pretty
 
-# Filter by project
+# Filter by project name or full path
 agent-optic sessions --project my-app --raw --pretty
 
 # Find specific session by ID
@@ -234,7 +234,7 @@ Every command returns:
 | `--pretty` | Pretty-print JSON |
 | `--format jsonl` | One JSON object per line (streaming) |
 | `--fields a,b,c` | Select top-level fields from objects |
-| `--limit N` | Limit array/stream length |
+| `--limit N` | Limit array/stream length, including nested arrays in object output |
 
 Combine `--raw --pretty` for readable data-only output. Combine `--raw --fields` for minimal output.
 

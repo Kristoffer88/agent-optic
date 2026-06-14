@@ -17,6 +17,22 @@ export function projectName(projectPath: string): string {
 	return projectPath.split("/").pop() || projectPath;
 }
 
+/** Match bare filters against the short project name, and path-like filters against the full path. */
+export function matchesProjectFilter(
+	projectPath: string | undefined,
+	shortName: string | undefined,
+	filter: string | undefined,
+): boolean {
+	if (!filter) return true;
+	const needle = filter.toLowerCase();
+	const isPathLike = filter.includes("/") || filter.includes("\\") || filter.startsWith("~");
+	return Boolean(
+		isPathLike
+			? projectPath?.toLowerCase().includes(needle)
+			: shortName?.toLowerCase().includes(needle),
+	);
+}
+
 /** Synthetic placeholder used when a session's project/cwd is not yet known. */
 export function unknownProject(sessionId: string): string {
 	return `(unknown)/${sessionId}`;
