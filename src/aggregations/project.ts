@@ -6,6 +6,7 @@ import { readHistory } from "../readers/history-reader.js";
 import { parseSessionDetail } from "../parsers/session-detail.js";
 import { resolveDateRange } from "../utils/dates.js";
 import { matchesProjectFilter } from "../utils/paths.js";
+import { canonicalProvider } from "../utils/providers.js";
 import { estimateHours } from "./time.js";
 
 /** Build per-project summaries from session data. */
@@ -36,6 +37,7 @@ export async function buildProjectSummaries(
 	}
 
 	const summaries: ProjectSummary[] = [];
+	const normalizedProvider = canonicalProvider(provider);
 
 	for (const [name, projectSessions] of byProject) {
 		const allToolCalls: ToolCallSummary[] = [];
@@ -45,7 +47,7 @@ export async function buildProjectSummaries(
 
 		// Parse detailed sessions for rich data
 		for (const session of projectSessions) {
-			if (session.prompts.length >= 3) {
+			if (normalizedProvider === "codex" || session.prompts.length >= 3) {
 				const detail = await parseSessionDetail(provider, session, paths, privacy);
 				allToolCalls.push(...detail.toolCalls);
 				allFiles.push(...detail.filesReferenced);
