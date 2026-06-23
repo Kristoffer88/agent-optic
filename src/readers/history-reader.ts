@@ -31,6 +31,13 @@ interface CodexDesktopIndexEntry {
 	updated_at: string;
 }
 
+interface CodexSessionSummary {
+	prompts: string[];
+	timestamps: number[];
+	timeRange?: { start: number; end: number };
+	lastFileActivity?: number;
+}
+
 /**
  * Read history.jsonl and group entries into SessionInfo objects.
  * This is the fast path — no session file reads, just history.jsonl.
@@ -265,7 +272,7 @@ async function readCodexHistory(
 	privacy: PrivacyConfig,
 	sessionsDir: string,
 ): Promise<SessionInfo[]> {
-	const sessionMap = new Map<string, { prompts: string[]; timestamps: number[] }>();
+	const sessionMap = new Map<string, CodexSessionSummary>();
 
 	for (const indexFile of codexIndexFiles(historyFile)) {
 		const file = Bun.file(indexFile);
@@ -308,6 +315,8 @@ async function readCodexHistory(
 			sessionMap.set(scanned.sessionId, {
 				prompts: scanned.prompts,
 				timestamps: scanned.promptTimestamps,
+				timeRange: scanned.timeRange,
+				lastFileActivity: scanned.lastFileActivity,
 			});
 		}
 	}
@@ -325,10 +334,11 @@ async function readCodexHistory(
 				projectName: projectName(project),
 				prompts: data.prompts,
 				promptTimestamps: data.timestamps,
-				timeRange: {
+				timeRange: data.timeRange ?? {
 					start: Math.min(...data.timestamps),
 					end: Math.max(...data.timestamps),
 				},
+				lastFileActivity: data.lastFileActivity,
 			};
 		}),
 	);
@@ -396,18 +406,75 @@ async function scanCodexRollouts(
 		const project = header.cwd ?? unknownProject(parsed.sessionId);
 		if (isProjectExcluded(project, privacy)) continue;
 
-		const prompt = privacy.redactPrompts ? "[redacted]" : "(no index entry)";
+		const rolloutFile = Bun.file(join(sessionsDir, rel));
+		let firstPrompt: string | undefined;
+		let minTs = parsed.timestampMs;
+		let maxTs = parsed.timestampMs;
+
+		const text = await rolloutFile.text();
+		for (const line of text.split(/\r?\n/)) {
+			if (!line.trim()) continue;
+
+			let entry: unknown;
+			try {
+				entry = JSON.parse(line);
+			} catch {
+				continue;
+			}
+
+			if (!entry || typeof entry !== "object") continue;
+			const record = entry as Record<string, unknown>;
+			const payload = record.payload && typeof record.payload === "object"
+				? record.payload as Record<string, unknown>
+				: undefined;
+			const timestamp = typeof record.timestamp === "string"
+				? record.timestamp
+				: typeof payload?.timestamp === "string"
+					? payload.timestamp
+					: "";
+			const timestampMs = Date.parse(timestamp);
+			if (!Number.isNaN(timestampMs)) {
+				minTs = Math.min(minTs, timestampMs);
+				maxTs = Math.max(maxTs, timestampMs);
+			}
+
+			if (firstPrompt) continue;
+			if (record.type !== "response_item") continue;
+			if (!payload || payload.type !== "message" || payload.role !== "user") continue;
+			if (!Array.isArray(payload.content)) continue;
+
+			const prompt = payload.content
+				.map((c) => c && typeof c === "object" && typeof (c as Record<string, unknown>).text === "string"
+					? (c as Record<string, string>).text
+					: "")
+				.filter((t) =>
+					t.length > 0
+					&& !/^<(user_instructions|environment_context|INSTRUCTIONS)>/.test(t)
+					&& !t.startsWith("# AGENTS.md instructions")
+				)
+				.join("\n")
+				.trim();
+			if (prompt) firstPrompt = prompt;
+		}
+
+		const prompt = privacy.redactPrompts
+			? "[redacted]"
+			: firstPrompt
+				? privacy.redactPatterns.length > 0
+					? redactString(firstPrompt, privacy)
+					: firstPrompt
+				: "(no prompt)";
 		sessions.push({
 			sessionId: parsed.sessionId,
 			project,
 			projectName: projectName(project),
 			prompts: [prompt],
-			promptTimestamps: [parsed.timestampMs],
+			promptTimestamps: [minTs],
 			timeRange: {
-				start: parsed.timestampMs,
-				end: parsed.timestampMs,
+				start: minTs,
+				end: maxTs,
 			},
-			lastFileActivity: Bun.file(join(sessionsDir, rel)).lastModified || undefined,
+			lastFileActivity: rolloutFile.lastModified || undefined,
 		});
 	}
 
