@@ -19,10 +19,23 @@ interface ClaudeHistoryEntry {
 	pastedContents?: Record<string, unknown>;
 }
 
-interface CodexHistoryEntry {
+interface LegacyCodexHistoryEntry {
 	session_id: string;
 	ts: number;
 	text: string;
+}
+
+interface CodexDesktopIndexEntry {
+	id: string;
+	thread_name?: string;
+	updated_at: string;
+}
+
+interface CodexSessionSummary {
+	prompts: string[];
+	timestamps: number[];
+	timeRange?: { start: number; end: number };
+	lastFileActivity?: number;
 }
 
 /**
@@ -259,49 +272,51 @@ async function readCodexHistory(
 	privacy: PrivacyConfig,
 	sessionsDir: string,
 ): Promise<SessionInfo[]> {
-	const file = Bun.file(historyFile);
-	if (!(await file.exists())) return [];
+	const sessionMap = new Map<string, CodexSessionSummary>();
 
-	const text = await file.text();
-	const entries: CodexHistoryEntry[] = [];
+	for (const indexFile of codexIndexFiles(historyFile)) {
+		const file = Bun.file(indexFile);
+		if (!(await file.exists())) continue;
 
-	for (const line of text.split("\n")) {
-		if (!line.trim()) continue;
-		try {
-			const entry = JSON.parse(line) as CodexHistoryEntry;
-			if (
-				typeof entry.session_id !== "string" ||
-				typeof entry.ts !== "number" ||
-				typeof entry.text !== "string"
-			) {
-				continue;
+		const text = await file.text();
+		for (const line of text.split("\n")) {
+			if (!line.trim()) continue;
+			try {
+				const normalized = normalizeCodexIndexEntry(JSON.parse(line));
+				if (!normalized) continue;
+
+				const entryDate = toLocalDate(normalized.timestampMs);
+				if (entryDate < from || entryDate > to) continue;
+
+				const prompt = privacy.redactPrompts
+					? "[redacted]"
+					: privacy.redactPatterns.length > 0
+						? redactString(normalized.prompt, privacy)
+						: normalized.prompt;
+
+				const existing = sessionMap.get(normalized.sessionId);
+				if (existing) {
+					existing.prompts.push(prompt);
+					existing.timestamps.push(normalized.timestampMs);
+				} else {
+					sessionMap.set(normalized.sessionId, {
+						prompts: [prompt],
+						timestamps: [normalized.timestampMs],
+					});
+				}
+			} catch {
+				// skip malformed
 			}
-			const timestampMs = entry.ts * 1000;
-			const entryDate = toLocalDate(timestampMs);
-			if (entryDate < from || entryDate > to) continue;
-			entries.push(entry);
-		} catch {
-			// skip malformed
 		}
 	}
 
-	const sessionMap = new Map<string, { prompts: string[]; timestamps: number[] }>();
-	for (const entry of entries) {
-		const existing = sessionMap.get(entry.session_id);
-		const prompt = privacy.redactPrompts
-			? "[redacted]"
-			: privacy.redactPatterns.length > 0
-				? redactString(entry.text, privacy)
-				: entry.text;
-
-		const timestampMs = entry.ts * 1000;
-		if (existing) {
-			existing.prompts.push(prompt);
-			existing.timestamps.push(timestampMs);
-		} else {
-			sessionMap.set(entry.session_id, {
-				prompts: [prompt],
-				timestamps: [timestampMs],
+	for (const scanned of await scanCodexRollouts(sessionsDir, from, to, privacy)) {
+		if (!sessionMap.has(scanned.sessionId)) {
+			sessionMap.set(scanned.sessionId, {
+				prompts: scanned.prompts,
+				timestamps: scanned.promptTimestamps,
+				timeRange: scanned.timeRange,
+				lastFileActivity: scanned.lastFileActivity,
 			});
 		}
 	}
@@ -319,10 +334,11 @@ async function readCodexHistory(
 				projectName: projectName(project),
 				prompts: data.prompts,
 				promptTimestamps: data.timestamps,
-				timeRange: {
+				timeRange: data.timeRange ?? {
 					start: Math.min(...data.timestamps),
 					end: Math.max(...data.timestamps),
 				},
+				lastFileActivity: data.lastFileActivity,
 			};
 		}),
 	);
@@ -330,4 +346,151 @@ async function readCodexHistory(
 	return sessions
 		.filter((session): session is SessionInfo => !!session)
 		.sort((a, b) => a.timeRange.start - b.timeRange.start);
+}
+
+function codexIndexFiles(historyFile: string): string[] {
+	return [...new Set([
+		historyFile,
+		join(dirname(historyFile), "session_index.jsonl"),
+	])];
+}
+
+function normalizeCodexIndexEntry(
+	entry: unknown,
+): { sessionId: string; timestampMs: number; prompt: string } | null {
+	if (!entry || typeof entry !== "object") return null;
+	const e = entry as Partial<LegacyCodexHistoryEntry & CodexDesktopIndexEntry>;
+
+	if (
+		typeof e.session_id === "string" &&
+		typeof e.ts === "number" &&
+		typeof e.text === "string"
+	) {
+		return {
+			sessionId: e.session_id,
+			timestampMs: e.ts * 1000,
+			prompt: e.text,
+		};
+	}
+
+	if (typeof e.id === "string" && typeof e.updated_at === "string") {
+		const timestampMs = Date.parse(e.updated_at);
+		if (Number.isNaN(timestampMs)) return null;
+		return {
+			sessionId: e.id,
+			timestampMs,
+			prompt: typeof e.thread_name === "string" && e.thread_name.length > 0
+				? e.thread_name
+				: "(untitled Codex session)",
+		};
+	}
+
+	return null;
+}
+
+async function scanCodexRollouts(
+	sessionsDir: string,
+	from: string,
+	to: string,
+	privacy: PrivacyConfig,
+): Promise<SessionInfo[]> {
+	const sessions: SessionInfo[] = [];
+	const glob = new Bun.Glob("**/*.jsonl");
+
+	for await (const rel of glob.scan({ cwd: sessionsDir, absolute: false })) {
+		const parsed = parseCodexRolloutPath(rel);
+		if (!parsed) continue;
+		if (parsed.date < from || parsed.date > to) continue;
+
+		const header = await readCodexSessionHeader(sessionsDir, parsed.sessionId);
+		const project = header.cwd ?? unknownProject(parsed.sessionId);
+		if (isProjectExcluded(project, privacy)) continue;
+
+		const rolloutFile = Bun.file(join(sessionsDir, rel));
+		let firstPrompt: string | undefined;
+		let minTs = parsed.timestampMs;
+		let maxTs = parsed.timestampMs;
+
+		const text = await rolloutFile.text();
+		for (const line of text.split(/\r?\n/)) {
+			if (!line.trim()) continue;
+
+			let entry: unknown;
+			try {
+				entry = JSON.parse(line);
+			} catch {
+				continue;
+			}
+
+			if (!entry || typeof entry !== "object") continue;
+			const record = entry as Record<string, unknown>;
+			const payload = record.payload && typeof record.payload === "object"
+				? record.payload as Record<string, unknown>
+				: undefined;
+			const timestamp = typeof record.timestamp === "string"
+				? record.timestamp
+				: typeof payload?.timestamp === "string"
+					? payload.timestamp
+					: "";
+			const timestampMs = Date.parse(timestamp);
+			if (!Number.isNaN(timestampMs)) {
+				minTs = Math.min(minTs, timestampMs);
+				maxTs = Math.max(maxTs, timestampMs);
+			}
+
+			if (firstPrompt) continue;
+			if (record.type !== "response_item") continue;
+			if (!payload || payload.type !== "message" || payload.role !== "user") continue;
+			if (!Array.isArray(payload.content)) continue;
+
+			const prompt = payload.content
+				.map((c) => c && typeof c === "object" && typeof (c as Record<string, unknown>).text === "string"
+					? (c as Record<string, string>).text
+					: "")
+				.filter((t) =>
+					t.length > 0
+					&& !/^<(user_instructions|environment_context|INSTRUCTIONS)>/.test(t)
+					&& !t.startsWith("# AGENTS.md instructions")
+				)
+				.join("\n")
+				.trim();
+			if (prompt) firstPrompt = prompt;
+		}
+
+		const prompt = privacy.redactPrompts
+			? "[redacted]"
+			: firstPrompt
+				? privacy.redactPatterns.length > 0
+					? redactString(firstPrompt, privacy)
+					: firstPrompt
+				: "(no prompt)";
+		sessions.push({
+			sessionId: parsed.sessionId,
+			project,
+			projectName: projectName(project),
+			prompts: [prompt],
+			promptTimestamps: [minTs],
+			timeRange: {
+				start: minTs,
+				end: maxTs,
+			},
+			lastFileActivity: rolloutFile.lastModified || undefined,
+		});
+	}
+
+	return sessions;
+}
+
+function parseCodexRolloutPath(
+	path: string,
+): { date: string; timestampMs: number; sessionId: string } | null {
+	const filename = basename(path);
+	const m = filename.match(
+		/^rollout-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(.+)\.jsonl$/,
+	);
+	if (!m) return null;
+	const [, date, hour, minute, second, sessionId] = m;
+	const timestampMs = Date.parse(`${date}T${hour}:${minute}:${second}Z`);
+	if (Number.isNaN(timestampMs)) return null;
+	return { date, timestampMs, sessionId };
 }

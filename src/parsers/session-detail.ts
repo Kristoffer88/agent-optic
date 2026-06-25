@@ -328,9 +328,10 @@ export async function parseSessions(
 ): Promise<{ detailed: SessionDetail[]; short: SessionInfo[] }> {
 	const detailed: SessionDetail[] = [];
 	const short: SessionInfo[] = [];
+	const normalized = canonicalProvider(provider);
 
 	for (const session of sessions) {
-		if (session.prompts.length >= 3) {
+		if (normalized === "codex" || session.prompts.length >= 3) {
 			detailed.push(await parseSessionDetail(provider, session, paths, privacy));
 		} else {
 			short.push(session);
