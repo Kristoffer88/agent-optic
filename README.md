@@ -277,9 +277,9 @@ const ch = createHistory({
 
 `cursor` reads from `~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb` — sessions are discovered from `aiService.generations`. These sessions are marked `dataCompleteness: "prompt-only"` with `sourceCapabilities: ["prompt", "project", "timestamps"]`.
 
-`claude-desktop` reads from `~/Library/Application Support/Claude/local-agent-mode-sessions/**/local_*.json` — sessions expose title/initial prompt, model, selected folder, and timestamps, but not the full transcript. These sessions are marked `dataCompleteness: "prompt-only"`.
+`claude-desktop` reads from `~/Library/Application Support/Claude/local-agent-mode-sessions/**/local_*.json` and sibling `audit.jsonl` files when present. Sessions with audit logs expose full transcript/tool-stream semantics and are marked `dataCompleteness: "full"`; metadata-only records fall back to `dataCompleteness: "prompt-only"`.
 
-`opencode` reads from `~/Library/Application Support/ai.opencode.desktop/*.dat` — sessions are inferred from timestamped notification metadata and workspace model selections. Prompt/transcript text is not available in this local store, so these sessions are marked `dataCompleteness: "metadata-only"`.
+`opencode` reads full session data from `~/.local/share/opencode/storage/{session,message,part}/` when present, including prompts, assistant text, tool calls, token totals, and costs. It also reads `~/Library/Application Support/ai.opencode.desktop/*.dat` as a desktop notification/model-selection fallback; fallback-only records are marked `dataCompleteness: "metadata-only"`.
 
 Not every installed AI app has readable local history. In this install, ChatGPT.app conversation files under `~/Library/Application Support/com.openai.chat` are binary/encrypted `.data` blobs; Gemini and Continue only showed skill bundles, not session history.
 
@@ -293,7 +293,7 @@ Not every installed AI app has readable local history. In this install, ChatGPT.
 | `sessions.transcript(id, project?)` | Streaming | Full session file | `AsyncGenerator<TranscriptEntry>` |
 | `sessions.count(filter?)` | Fast | `history.jsonl` only | `number` |
 
-For `codex`, `openai`, `pi`, `cursor`, `claude-desktop`, and `opencode`, `project` is optional because project/cwd is resolved from session metadata. Consumers should check `dataCompleteness` / `sourceCapabilities` before assuming a full transcript, tool calls, tokens, or assistant summaries are available.
+For `codex`, `openai`, `pi`, `cursor`, `claude-desktop`, and `opencode`, `project` is optional because project/cwd is resolved from session metadata. Consumers should check `dataCompleteness` / `sourceCapabilities` before assuming a full transcript, tool calls, tokens, or assistant summaries are available; Claude Desktop and OpenCode records vary depending on whether their transcript stores exist.
 
 `dataCompleteness` values:
 - `full` or omitted: regular provider data with full transcript semantics.

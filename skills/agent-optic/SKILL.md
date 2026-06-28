@@ -12,7 +12,7 @@ Output is structured JSON. Use `--raw` for data-only output. Use `--pretty` for 
 
 Supported providers: `claude` (default), `codex`, `openai`, `pi`, `copilot`, `cursor`, `claude-desktop`, `opencode`.
 
-Check `dataCompleteness` and `sourceCapabilities` before assuming full transcripts are available. `cursor` and `claude-desktop` are currently `prompt-only`; `opencode` is `metadata-only`.
+Check `dataCompleteness` and `sourceCapabilities` before assuming full transcripts are available. `cursor` is prompt-only; `claude-desktop` and `opencode` are full when their local transcript stores exist, with metadata/prompt fallback.
 
 ## Core Workflow
 
@@ -256,8 +256,8 @@ Combine `--raw --pretty` for readable data-only output. Combine `--raw --fields`
 | Pi | `--provider pi` | `~/.pi` | No history.jsonl — sessions discovered by directory scan |
 | Copilot | `--provider copilot` | `~/.copilot` | GitHub Copilot CLI |
 | Cursor | `--provider cursor` | `~/Library/Application Support/Cursor/User` | Prompt-level generations from workspace `state.vscdb` files |
-| Claude Desktop | `--provider claude-desktop` | `~/Library/Application Support/Claude` | Local agent-mode metadata from `local_*.json` files |
-| OpenCode | `--provider opencode` | `~/Library/Application Support/ai.opencode.desktop` | Metadata from `.dat` JSON stores; no prompt transcript text |
+| Claude Desktop | `--provider claude-desktop` | `~/Library/Application Support/Claude` | Local agent-mode metadata from `local_*.json` files, plus full audit transcripts from sibling `audit.jsonl` files when present |
+| OpenCode | `--provider opencode` | `~/Library/Application Support/ai.opencode.desktop` + `~/.local/share/opencode/storage` | Full storage transcripts from `session/message/part` JSON files when present; desktop `.dat` metadata fallback |
 
 Override the data directory with `--provider-dir <path>` for non-standard installations.
 
