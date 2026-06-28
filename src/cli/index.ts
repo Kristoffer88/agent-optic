@@ -33,7 +33,7 @@ OPTIONS
   --from YYYY-MM-DD     Start of date range
   --to YYYY-MM-DD       End of date range
   --project <name|path> Filter by project name or full path
-  --provider <name>     Data provider: claude (default), codex, openai, pi, copilot
+  --provider <name>     Data provider: claude (default), codex, openai, pi, copilot, cursor, claude-desktop, opencode
   --provider-dir <path> Override provider data directory (default: ~/.<provider>)
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --format <mode>       Output mode: json (default), jsonl
@@ -52,6 +52,9 @@ EXAMPLES
   agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
   agent-optic sessions --provider codex --date 2026-02-09
   agent-optic sessions --provider openai --date 2026-02-09
+  agent-optic sessions --provider cursor --date 2026-06-18
+  agent-optic sessions --provider claude-desktop --from 2026-06-01
+  agent-optic sessions --provider opencode --from 2026-03-01
   agent-optic pi-board --date 2026-06-05 --out ~/work/.pi/agent-board/index.html
 
 SECURITY
@@ -198,6 +201,8 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"promptTimestamps",
 		"timeRange",
 		"lastFileActivity",
+		"dataCompleteness",
+		"sourceCapabilities",
 		"gitBranch",
 		"model",
 		"totalInputTokens",
@@ -215,6 +220,8 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"promptTimestamps",
 		"timeRange",
 		"lastFileActivity",
+		"dataCompleteness",
+		"sourceCapabilities",
 		"gitBranch",
 		"model",
 		"totalInputTokens",
@@ -409,7 +416,7 @@ function assertValidArgs(args: CliArgs): void {
 	if (!isProvider(args.provider)) {
 		throw new CliError(
 			"INVALID_PROVIDER",
-			`Invalid provider: ${args.provider}. Use: claude, codex, openai, pi, copilot`,
+		`Invalid provider: ${args.provider}. Use: claude, codex, openai, pi, copilot, cursor, claude-desktop, opencode`,
 		);
 	}
 

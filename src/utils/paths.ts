@@ -95,6 +95,51 @@ export function providerPaths(config?: {
 		};
 	}
 
+	if (provider === "cursor") {
+		return {
+			base,
+			historyFile: join(base, "history.jsonl"), // Cursor stores prompt history in workspace state.vscdb
+			projectsDir: join(base, "workspaceStorage"),
+			sessionsDir: join(base, "workspaceStorage"),
+			globalStateFile: join(base, "globalStorage", "state.vscdb"),
+			tasksDir: join(base, "tasks"),
+			plansDir: join(base, "plans"),
+			todosDir: join(base, "todos"),
+			skillsDir: join(base, "skills"),
+			statsCache: join(base, "stats-cache.json"),
+		};
+	}
+
+	if (provider === "claude-desktop") {
+		return {
+			base,
+			historyFile: join(base, "history.jsonl"), // Claude Desktop local agent mode has metadata JSON files
+			projectsDir: join(base, "local-agent-mode-sessions"),
+			sessionsDir: join(base, "local-agent-mode-sessions"),
+			globalStateFile: join(base, "config.json"),
+			tasksDir: join(base, "tasks"),
+			plansDir: join(base, "plans"),
+			todosDir: join(base, "todos"),
+			skillsDir: join(base, "skills"),
+			statsCache: join(base, "stats-cache.json"),
+		};
+	}
+
+	if (provider === "opencode") {
+		return {
+			base,
+			historyFile: join(base, "opencode.global.dat"),
+			projectsDir: base,
+			sessionsDir: base,
+			globalStateFile: join(base, "opencode.global.dat"),
+			tasksDir: join(base, "tasks"),
+			plansDir: join(base, "plans"),
+			todosDir: join(base, "todos"),
+			skillsDir: join(base, "skills"),
+			statsCache: join(base, "stats-cache.json"),
+		};
+	}
+
 	return {
 		base,
 		historyFile: join(base, "history.jsonl"),

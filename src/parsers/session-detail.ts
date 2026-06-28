@@ -15,6 +15,9 @@ import {
 } from "../readers/codex-rollout-reader.js";
 import { parsePiSessionDetail } from "../readers/pi-session-reader.js";
 import { parseCopilotSessionDetail } from "../readers/copilot-session-reader.js";
+import { parseCursorSessionDetail } from "../readers/cursor-session-reader.js";
+import { parseClaudeDesktopSessionDetail } from "../readers/claude-desktop-session-reader.js";
+import { parseOpenCodeSessionDetail } from "../readers/opencode-session-reader.js";
 
 /**
  * Parse a full session JSONL file into a SessionDetail.
@@ -32,6 +35,15 @@ export async function parseSessionDetail(
 	}
 	if (normalized === "copilot") {
 		return parseCopilotSessionDetail(session, paths.sessionsDir, privacy);
+	}
+	if (normalized === "cursor") {
+		return parseCursorSessionDetail(session, paths.sessionsDir, privacy);
+	}
+	if (normalized === "claude-desktop") {
+		return parseClaudeDesktopSessionDetail(session, paths.sessionsDir, privacy);
+	}
+	if (normalized === "opencode") {
+		return parseOpenCodeSessionDetail(session, paths.sessionsDir, privacy);
 	}
 	if (normalized === "codex") {
 		return parseCodexSessionDetail(session, paths.sessionsDir, privacy);
@@ -331,7 +343,13 @@ export async function parseSessions(
 	const normalized = canonicalProvider(provider);
 
 	for (const session of sessions) {
-		if (normalized === "codex" || session.prompts.length >= 3) {
+		if (
+			normalized === "codex" ||
+			normalized === "cursor" ||
+			normalized === "claude-desktop" ||
+			normalized === "opencode" ||
+			session.prompts.length >= 3
+		) {
 			detailed.push(await parseSessionDetail(provider, session, paths, privacy));
 		} else {
 			short.push(session);

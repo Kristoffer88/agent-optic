@@ -5,6 +5,9 @@ import type { Provider } from "../types/provider.js";
 import { decodeProjectPath, decodePiProjectPath } from "../utils/paths.js";
 import type { PrivacyConfig } from "../types/privacy.js";
 import { isProjectExcluded } from "../privacy/redact.js";
+import { readCursorProjects } from "./cursor-session-reader.js";
+import { readClaudeDesktopProjects } from "./claude-desktop-session-reader.js";
+import { readOpenCodeProjects } from "./opencode-session-reader.js";
 
 /** List all projects from provider/projects/ */
 export async function readProjects(
@@ -12,6 +15,16 @@ export async function readProjects(
 	privacy: PrivacyConfig,
 	provider?: Provider,
 ): Promise<ProjectInfo[]> {
+	if (provider === "cursor") {
+		return readCursorProjects(projectsDir, privacy);
+	}
+	if (provider === "claude-desktop") {
+		return readClaudeDesktopProjects(projectsDir, privacy);
+	}
+	if (provider === "opencode") {
+		return readOpenCodeProjects(projectsDir, privacy);
+	}
+
 	const projects: ProjectInfo[] = [];
 
 	let entries: string[];

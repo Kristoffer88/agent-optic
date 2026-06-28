@@ -2,7 +2,7 @@
 
 > Reads local assistant history directories and returns structured JSON — sessions, costs, timesheets, work patterns.
 
-Zero-dependency, local-first TypeScript library for reading session data from provider directories such as `~/.claude/`, `~/.codex/`, `~/.pi/`, and `~/.copilot/`.
+Zero-dependency, local-first TypeScript library for reading session data from provider directories such as `~/.claude/`, `~/.codex/`, `~/.pi/`, `~/.copilot/`, Cursor's local app storage, Claude Desktop, and OpenCode Desktop.
 
 > **Security Warning**: Provider home directories contain highly sensitive data — API keys, source code, credentials, and personal information may be present in plaintext session files. This library is designed with privacy as the primary concern. See [SECURITY.md](./SECURITY.md).
 
@@ -116,7 +116,7 @@ bun examples/session-digest.ts --days 7 | your-llm-cli "which sessions were the 
 
 ### Retrospective
 
-Dump the current session as JSON so the agent can look at its own data and propose take-aways. The "Retrospective Knowledge Capture" pattern: decouple *flagging* (individual, in-the-moment) from *solving* (team, on a cadence). Works with any supported provider — Claude Code, Codex, Copilot, Pi.
+Dump the current session as JSON so the agent can look at its own data and propose take-aways. The "Retrospective Knowledge Capture" pattern: decouple *flagging* (individual, in-the-moment) from *solving* (team, on a cadence). Works with any supported provider — Claude Code, Claude Desktop, Codex, Copilot, Cursor, OpenCode, Pi.
 
 ```bash
 # Auto-detects session id from CLAUDE_CODE_SESSION_ID / CODEX_COMPANION_SESSION_ID
@@ -126,9 +126,12 @@ bun examples/retrospective.ts
 # Pipe to any LLM CLI
 bun examples/retrospective.ts | your-llm-cli "what could have gone better in this session?"
 
-# Explicit session + provider (claude | codex | openai | pi | copilot)
+# Explicit session + provider (claude | codex | openai | pi | copilot | cursor | claude-desktop | opencode)
 bun examples/retrospective.ts --provider codex --session <id>
 bun examples/retrospective.ts --provider copilot --session <id>
+bun examples/retrospective.ts --provider cursor --session <id>
+bun examples/retrospective.ts --provider claude-desktop --session <id>
+bun examples/retrospective.ts --provider opencode --session <id>
 ```
 
 The output includes prompts, assistant summaries, tool-call breakdown, files touched, and cost — enough for the agent to spot redirects, wasted tool calls, and missing context. A common follow-up is to file each take-away as a labelled GitHub issue (`gh issue create -l agent-retrospective`) so the team can review them weekly and convert them into changes to skills, agent instructions (`CLAUDE.md` / `AGENTS.md` / `.cursorrules` / etc.), tests, or tooling.
@@ -260,7 +263,7 @@ The public package surface is intentionally small: `createHistory`, core types, 
 
 ```typescript
 const ch = createHistory({
-  provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "copilot"
+  provider: "claude",                // "claude" | "codex" | "openai" | "pi" | "copilot" | "cursor" | "claude-desktop" | "opencode"
   providerDir: "~/.claude",          // default: provider-specific home directory
   privacy: "local",                  // "local" | "shareable" | "strict" | Partial<PrivacyConfig>
 });
@@ -272,6 +275,13 @@ const ch = createHistory({
 
 `copilot` reads from `~/.copilot/session-state/` — sessions are discovered from `workspace.yaml` files, token totals from `session.shutdown` events in `events.jsonl`.
 
+`cursor` reads from `~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb` — sessions are discovered from `aiService.generations`. These sessions are marked `dataCompleteness: "prompt-only"` with `sourceCapabilities: ["prompt", "project", "timestamps"]`.
+
+`claude-desktop` reads from `~/Library/Application Support/Claude/local-agent-mode-sessions/**/local_*.json` — sessions expose title/initial prompt, model, selected folder, and timestamps, but not the full transcript. These sessions are marked `dataCompleteness: "prompt-only"`.
+
+`opencode` reads from `~/Library/Application Support/ai.opencode.desktop/*.dat` — sessions are inferred from timestamped notification metadata and workspace model selections. Prompt/transcript text is not available in this local store, so these sessions are marked `dataCompleteness: "metadata-only"`.
+
+Not every installed AI app has readable local history. In this install, ChatGPT.app conversation files under `~/Library/Application Support/com.openai.chat` are binary/encrypted `.data` blobs; Gemini and Continue only showed skill bundles, not session history.
 
 ### Sessions
 
@@ -283,7 +293,12 @@ const ch = createHistory({
 | `sessions.transcript(id, project?)` | Streaming | Full session file | `AsyncGenerator<TranscriptEntry>` |
 | `sessions.count(filter?)` | Fast | `history.jsonl` only | `number` |
 
-For `codex`, `openai`, and `pi`, `project` is optional because project/cwd is resolved from session metadata.
+For `codex`, `openai`, `pi`, `cursor`, `claude-desktop`, and `opencode`, `project` is optional because project/cwd is resolved from session metadata. Consumers should check `dataCompleteness` / `sourceCapabilities` before assuming a full transcript, tool calls, tokens, or assistant summaries are available.
+
+`dataCompleteness` values:
+- `full` or omitted: regular provider data with full transcript semantics.
+- `prompt-only`: local store exposes prompts and metadata, but not the full assistant transcript/tool stream.
+- `metadata-only`: local store exposes timestamps/project/model metadata, but not prompt or transcript text.
 
 ### Other Data
 
@@ -412,7 +427,7 @@ src/
   agent-optic.ts        # Main factory: createHistory()
   pricing.ts            # Model pricing data and cost estimation
   types/                # Type definitions (one file per domain)
-  readers/              # Per-provider file readers (Claude, Codex, Pi, Copilot)
+  readers/              # Per-provider file readers (Claude, Codex, Pi, Copilot, Cursor, Claude Desktop, OpenCode)
   parsers/              # Session parsing, tool categorization, content extraction
   aggregations/         # Daily/project/tool summaries, time estimation
   privacy/              # Redaction engine, privacy profiles, credential detection

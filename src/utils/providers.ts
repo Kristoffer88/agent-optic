@@ -8,6 +8,9 @@ const PROVIDER_HOME_DIR: Record<Provider, string> = {
 	openai: ".codex",
 	pi: ".pi",
 	copilot: ".copilot",
+	cursor: join("Library", "Application Support", "Cursor", "User"),
+	"claude-desktop": join("Library", "Application Support", "Claude"),
+	opencode: join("Library", "Application Support", "ai.opencode.desktop"),
 };
 
 export const DEFAULT_PROVIDER: Provider = "claude";

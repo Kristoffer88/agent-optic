@@ -13,6 +13,9 @@ import {
 } from "./codex-rollout-reader.js";
 import { peekPiSession, streamPiTranscript } from "./pi-session-reader.js";
 import { peekCopilotSession, streamCopilotTranscript } from "./copilot-session-reader.js";
+import { peekCursorSession, streamCursorTranscript } from "./cursor-session-reader.js";
+import { peekClaudeDesktopSession, streamClaudeDesktopTranscript } from "./claude-desktop-session-reader.js";
+import { peekOpenCodeSession, streamOpenCodeTranscript } from "./opencode-session-reader.js";
 
 /**
  * Locate a Claude session file by sessionId, regardless of project encoding.
@@ -61,6 +64,15 @@ export async function peekSession(
 	}
 	if (normalized === "copilot") {
 		return peekCopilotSession(session, paths.sessionsDir);
+	}
+	if (normalized === "cursor") {
+		return peekCursorSession(session, paths.sessionsDir);
+	}
+	if (normalized === "claude-desktop") {
+		return peekClaudeDesktopSession(session, paths.sessionsDir);
+	}
+	if (normalized === "opencode") {
+		return peekOpenCodeSession(session, paths.sessionsDir);
 	}
 	if (normalized === "codex") {
 		return peekCodexSession(session, paths.sessionsDir);
@@ -228,6 +240,18 @@ export async function* streamTranscript(
 	}
 	if (normalized === "copilot") {
 		yield* streamCopilotTranscript(sessionId, paths.sessionsDir, privacy);
+		return;
+	}
+	if (normalized === "cursor") {
+		yield* streamCursorTranscript(sessionId, paths.sessionsDir, privacy);
+		return;
+	}
+	if (normalized === "claude-desktop") {
+		yield* streamClaudeDesktopTranscript(sessionId, paths.sessionsDir, privacy);
+		return;
+	}
+	if (normalized === "opencode") {
+		yield* streamOpenCodeTranscript(sessionId, paths.sessionsDir, privacy);
 		return;
 	}
 	if (normalized === "codex") {

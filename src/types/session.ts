@@ -17,6 +17,10 @@ export interface SessionInfo {
 	timeRange: { start: number; end: number };
 	/** Transcript/session file mtime in epoch ms when available. Useful for active-session discovery. */
 	lastFileActivity?: number;
+	/** How complete the local provider data is for this session. Omitted means full/legacy provider behavior. */
+	dataCompleteness?: "full" | "prompt-only" | "metadata-only";
+	/** Machine-readable hints for what downstream tools can safely expect. */
+	sourceCapabilities?: SourceCapability[];
 }
 
 /** Session with metadata peeked from the session JSONL file (first+last lines). */
@@ -40,6 +44,18 @@ export interface SessionDetail extends SessionMeta {
 	thinkingBlockCount: number;
 	hasSidechains: boolean;
 }
+
+export type SourceCapability =
+	| "prompt"
+	| "transcript"
+	| "assistant-summary"
+	| "tool-calls"
+	| "files-referenced"
+	| "tokens"
+	| "cost"
+	| "model"
+	| "project"
+	| "timestamps";
 
 export type ToolCategory =
 	| "file_read"

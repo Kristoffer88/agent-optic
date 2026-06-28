@@ -152,7 +152,14 @@ export function createHistory(config?: HistoryConfig): History {
 			async detail(sessionId: string, projectPath?: string): Promise<SessionDetail> {
 				let session: SessionInfo | undefined;
 
-				if (!projectPath || provider === "codex" || provider === "pi") {
+				if (
+					!projectPath ||
+					provider === "codex" ||
+					provider === "pi" ||
+					provider === "cursor" ||
+					provider === "claude-desktop" ||
+					provider === "opencode"
+				) {
 					const all = await readHistory(
 						paths.historyFile,
 						"2000-01-01",

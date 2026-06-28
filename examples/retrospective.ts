@@ -3,7 +3,7 @@
  * retrospective.ts — Dump the current session as JSON for retrospective analysis.
  *
  * Works with any provider that agent-optic has a reader for: claude, codex,
- * openai, pi, copilot. Auto-detects the session id from CLAUDE_CODE_SESSION_ID
+ * openai, pi, copilot, cursor, claude-desktop, opencode. Auto-detects the session id from CLAUDE_CODE_SESSION_ID
  * or CODEX_COMPANION_SESSION_ID; pass --session / --provider for other agents.
  *
  * Usage:

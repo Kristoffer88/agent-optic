@@ -1,6 +1,6 @@
 # Security
 
-`~/.claude/`, `~/.codex/`, `~/.pi/`, `~/.copilot/`, and similar provider directories can contain raw assistant session data, including prompts, outputs, tool activity, and file paths.
+`~/.claude/`, `~/.codex/`, `~/.pi/`, `~/.copilot/`, Cursor app storage, Claude Desktop storage, OpenCode Desktop storage, and similar provider directories can contain raw assistant session data, including prompts, outputs, tool activity, and file paths.
 
 ## How this library handles it
 

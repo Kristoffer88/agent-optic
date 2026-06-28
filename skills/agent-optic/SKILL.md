@@ -5,12 +5,14 @@ description: Read AI assistant session data from local provider directories. Use
 
 # Session History with agent-optic
 
-agent-optic reads AI assistant session data from local provider directories (`~/.claude`, `~/.codex`, `~/.pi`, `~/.copilot`).
+agent-optic reads AI assistant session data from local provider directories (`~/.claude`, `~/.codex`, `~/.pi`, `~/.copilot`), Cursor's local app storage, Claude Desktop, and OpenCode Desktop.
 All data stays local. Zero dependencies. No network access.
 
 Output is structured JSON. Use `--raw` for data-only output. Use `--pretty` for readability. Use `--format jsonl` for streaming large results.
 
-Supported providers: `claude` (default), `codex`, `openai`, `pi`, `copilot`.
+Supported providers: `claude` (default), `codex`, `openai`, `pi`, `copilot`, `cursor`, `claude-desktop`, `opencode`.
+
+Check `dataCompleteness` and `sourceCapabilities` before assuming full transcripts are available. `cursor` and `claude-desktop` are currently `prompt-only`; `opencode` is `metadata-only`.
 
 ## Core Workflow
 
@@ -57,6 +59,9 @@ agent-optic sessions <session-id> --raw --pretty
 # Different provider
 agent-optic sessions --provider codex --raw --pretty
 agent-optic sessions --provider copilot --raw --pretty
+agent-optic sessions --provider cursor --raw --pretty
+agent-optic sessions --provider claude-desktop --raw --pretty
+agent-optic sessions --provider opencode --raw --pretty
 ```
 
 ### Session Detail
@@ -198,6 +203,9 @@ agent-optic detail <session-id> --raw --pretty
 agent-optic sessions --provider claude --from 2026-02-01 --raw --pretty
 agent-optic sessions --provider codex --from 2026-02-01 --raw --pretty
 agent-optic sessions --provider copilot --from 2026-02-01 --raw --pretty
+agent-optic sessions --provider cursor --from 2026-02-01 --raw --pretty
+agent-optic sessions --provider claude-desktop --from 2026-02-01 --raw --pretty
+agent-optic sessions --provider opencode --from 2026-02-01 --raw --pretty
 ```
 
 ### Export data for sharing
@@ -247,6 +255,9 @@ Combine `--raw --pretty` for readable data-only output. Combine `--raw --fields`
 | OpenAI | `--provider openai` | `~/.codex` | Alias for codex format |
 | Pi | `--provider pi` | `~/.pi` | No history.jsonl — sessions discovered by directory scan |
 | Copilot | `--provider copilot` | `~/.copilot` | GitHub Copilot CLI |
+| Cursor | `--provider cursor` | `~/Library/Application Support/Cursor/User` | Prompt-level generations from workspace `state.vscdb` files |
+| Claude Desktop | `--provider claude-desktop` | `~/Library/Application Support/Claude` | Local agent-mode metadata from `local_*.json` files |
+| OpenCode | `--provider opencode` | `~/Library/Application Support/ai.opencode.desktop` | Metadata from `.dat` JSON stores; no prompt transcript text |
 
 Override the data directory with `--provider-dir <path>` for non-standard installations.
 

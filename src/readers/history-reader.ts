@@ -10,6 +10,9 @@ import { isProjectExcluded, redactString } from "../privacy/redact.js";
 import { readCodexSessionHeader } from "./codex-rollout-reader.js";
 import { readPiHistory } from "./pi-session-reader.js";
 import { readCopilotHistory } from "./copilot-session-reader.js";
+import { readCursorHistory } from "./cursor-session-reader.js";
+import { readClaudeDesktopHistory } from "./claude-desktop-session-reader.js";
+import { readOpenCodeHistory } from "./opencode-session-reader.js";
 
 interface ClaudeHistoryEntry {
 	display: string;
@@ -62,6 +65,24 @@ export async function readHistory(
 	if (provider === "copilot") {
 		return readCopilotHistory(
 			options?.sessionsDir ?? join(dirname(historyFile), "session-state"),
+			from, to, privacy,
+		);
+	}
+	if (provider === "cursor") {
+		return readCursorHistory(
+			options?.sessionsDir ?? join(dirname(historyFile), "workspaceStorage"),
+			from, to, privacy,
+		);
+	}
+	if (provider === "claude-desktop") {
+		return readClaudeDesktopHistory(
+			options?.sessionsDir ?? join(dirname(historyFile), "local-agent-mode-sessions"),
+			from, to, privacy,
+		);
+	}
+	if (provider === "opencode") {
+		return readOpenCodeHistory(
+			options?.sessionsDir ?? dirname(historyFile),
 			from, to, privacy,
 		);
 	}

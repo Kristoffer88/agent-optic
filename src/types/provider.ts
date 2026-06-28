@@ -4,6 +4,9 @@ export const SUPPORTED_PROVIDERS = [
 	"openai",
 	"pi",
 	"copilot",
+	"cursor",
+	"claude-desktop",
+	"opencode",
 ] as const;
 
 export type Provider = (typeof SUPPORTED_PROVIDERS)[number];
