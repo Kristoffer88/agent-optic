@@ -271,7 +271,7 @@ const ch = createHistory({
 
 `openai` is currently an alias of Codex-format local history and defaults to `~/.codex`.
 
-`pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include `totalCost` from accumulated message costs.
+`pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include all user prompts, transcript start/end timestamps, `lastFileActivity`, `lastPrompt`, `userPromptCount`, a coarse `activityKind`, and `totalCost` from accumulated message costs. Pi date filters use actual transcript activity, not only the filename date, so a session that started earlier but continued today is still returned.
 
 `copilot` reads from `~/.copilot/session-state/` — sessions are discovered from `workspace.yaml` files, token totals from `session.shutdown` events in `events.jsonl`.
 
@@ -410,7 +410,7 @@ bunx --silent agent-optic sessions --provider claude --date 2026-02-09 --raw
 
 `--format json` returns a stable envelope (`schemaVersion`, `command`, `provider`, `generatedAt`, `data`) by default.
 Use `--raw` for data-only output and `--format jsonl` for one JSON object per line.
-`sessions` defaults to `--sort recent` (newest of `lastFileActivity`, `timeRange.end`, `timeRange.start`) before applying `--limit`; use `--sort mtime|start|end|recent` to be explicit.
+`sessions` defaults to `--sort recent` (newest of `lastFileActivity`, `timeRange.end`, `timeRange.start`) before applying `--limit`; use `--sort mtime|start|end|recent` to be explicit. Use `--since 24h` / `--since 90m` / `--since 7d` for a rolling session window.
 `--fields` selects top-level fields and fails fast if a requested field is unknown.
 
 Common agent commands:

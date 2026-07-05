@@ -1,7 +1,9 @@
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { PrivacyConfig } from "../types/privacy.js";
 import type { SessionDetail, SessionInfo, SessionMeta, ToolCallSummary } from "../types/session.js";
 import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
+import { toLocalDate } from "../utils/dates.js";
 import { projectName } from "../utils/paths.js";
 import { isProjectExcluded, redactString, shouldRedactStrings, filterTranscriptEntry } from "../privacy/redact.js";
 import { extractText, extractFilePaths, countThinkingBlocks } from "../parsers/content-blocks.js";
@@ -74,18 +76,25 @@ export async function readPiHistory(
 		const parsed = parsePiFilename(filename);
 		if (!parsed) continue;
 
-		// Filter by date from filename before reading file
-		if (parsed.date < from || parsed.date > to) continue;
-
 		const fullPath = join(sessionsDir, path);
 		const file = Bun.file(fullPath);
 		if (!(await file.exists())) continue;
 
 		let cwd: string | undefined;
-		let firstPrompt: string | undefined;
 		let sessionTimestamp: number | undefined;
+		let firstEventTimestamp: number | undefined;
+		let lastEventTimestamp: number | undefined;
+		let lastFileActivity: number | undefined;
+		const prompts: string[] = [];
+		const promptTimestamps: number[] = [];
 
 		try {
+			try {
+				lastFileActivity = (await stat(fullPath)).mtimeMs;
+			} catch {
+				// best effort only
+			}
+
 			const text = await file.text();
 			for (const line of text.split("\n")) {
 				if (!line.trim()) continue;
@@ -96,28 +105,24 @@ export async function readPiHistory(
 					continue;
 				}
 
+				const eventTimestamp = parsePiTimestamp(entry.timestamp);
+				if (eventTimestamp != null) {
+					firstEventTimestamp = firstEventTimestamp == null ? eventTimestamp : Math.min(firstEventTimestamp, eventTimestamp);
+					lastEventTimestamp = lastEventTimestamp == null ? eventTimestamp : Math.max(lastEventTimestamp, eventTimestamp);
+				}
+
 				if (entry.type === "session") {
 					cwd = entry.cwd;
-					sessionTimestamp = new Date(entry.timestamp).getTime();
+					sessionTimestamp = eventTimestamp ?? (typeof entry.timestamp === "string" ? new Date(entry.timestamp).getTime() : undefined);
 				}
 
-				if (
-					entry.type === "message" &&
-					entry.message?.role === "user" &&
-					!firstPrompt
-				) {
-					const content = entry.message.content;
-					if (typeof content === "string") {
-						firstPrompt = content;
-					} else if (Array.isArray(content)) {
-						const textBlock = content.find(
-							(b: any) => b.type === "text" && typeof b.text === "string",
-						);
-						if (textBlock) firstPrompt = textBlock.text;
+				if (entry.type === "message" && entry.message?.role === "user") {
+					const promptText = piUserPromptText(entry.message.content);
+					if (promptText) {
+						prompts.push(promptText);
+						promptTimestamps.push(eventTimestamp ?? sessionTimestamp ?? firstEventTimestamp ?? new Date(parsed.date).getTime());
 					}
 				}
-
-				if (cwd && firstPrompt) break;
 			}
 		} catch {
 			continue;
@@ -126,27 +131,68 @@ export async function readPiHistory(
 		if (!cwd) continue;
 		if (isProjectExcluded(cwd, privacy)) continue;
 
-		const ts = sessionTimestamp ?? new Date(parsed.date).getTime();
-		const prompt = firstPrompt
-			? privacy.redactPrompts
-				? "[redacted]"
-				: privacy.redactPatterns.length > 0
-					? redactString(firstPrompt, privacy)
-					: firstPrompt
-			: "(no prompt)";
+		const ts = sessionTimestamp ?? firstEventTimestamp ?? new Date(parsed.date).getTime();
+		const endTs = lastEventTimestamp ?? lastFileActivity ?? ts;
+		const startDate = toLocalDate(ts);
+		const endDate = toLocalDate(endTs);
+		// Include sessions whose actual transcript activity overlaps the requested date range.
+		// Pi sessions can start on an earlier day and continue today; filtering only by filename misses them.
+		if (endDate < from || startDate > to) continue;
+
+		const redactedPrompts = prompts.length > 0
+			? prompts.map((prompt) => redactPiPrompt(prompt, privacy))
+			: ["(no prompt)"];
+		const redactedPromptTimestamps = prompts.length > 0 ? promptTimestamps : [ts];
+		const lastPrompt = prompts.length > 0 ? redactPiPrompt(prompts[prompts.length - 1], privacy) : undefined;
 
 		sessions.push({
 			sessionId: parsed.sessionId,
 			project: cwd,
 			projectName: projectName(cwd),
-			prompts: [prompt],
-			promptTimestamps: [ts],
-			timeRange: { start: ts, end: ts },
+			prompts: redactedPrompts,
+			promptTimestamps: redactedPromptTimestamps,
+			timeRange: { start: ts, end: endTs },
+			lastFileActivity,
+			lastPrompt,
+			lastPromptTimestamp: promptTimestamps[promptTimestamps.length - 1],
+			userPromptCount: prompts.length,
+			activityKind: classifyPiActivity(prompts),
+			dataCompleteness: "full",
+			sourceCapabilities: ["prompt", "transcript", "assistant-summary", "tool-calls", "files-referenced", "tokens", "cost", "model", "project", "timestamps"],
 		});
 	}
 
 	sessions.sort((a, b) => a.timeRange.start - b.timeRange.start);
 	return sessions;
+}
+
+function parsePiTimestamp(value: unknown): number | undefined {
+	if (typeof value !== "string") return undefined;
+	const ms = new Date(value).getTime();
+	return Number.isFinite(ms) ? ms : undefined;
+}
+
+function piUserPromptText(content: unknown): string | undefined {
+	if (typeof content === "string") return content.trim() || undefined;
+	if (!Array.isArray(content)) return undefined;
+	const text = content
+		.filter((block: any) => block?.type === "text" && typeof block.text === "string")
+		.map((block: any) => block.text)
+		.join("\n")
+		.trim();
+	return text || undefined;
+}
+
+function redactPiPrompt(prompt: string, privacy: PrivacyConfig): string {
+	if (privacy.redactPrompts) return "[redacted]";
+	return privacy.redactPatterns.length > 0 ? redactString(prompt, privacy) : prompt;
+}
+
+function classifyPiActivity(prompts: string[]): string {
+	if (prompts.length > 0 && prompts.every((prompt) => prompt.trimStart().startsWith("[journal]"))) {
+		return "journal-host/tool";
+	}
+	return "human/cockpit";
 }
 
 /** Peek Pi session metadata (model, tokens, cost). */

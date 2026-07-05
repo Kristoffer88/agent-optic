@@ -3,7 +3,7 @@
 import { createHistory } from "../agent-optic.js";
 import type { PrivacyProfile } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
-import { today } from "../utils/dates.js";
+import { today, toLocalDate } from "../utils/dates.js";
 import { defaultProviderDir, isProvider } from "../utils/providers.js";
 import { renderPiAgentBoard, type PiAgentBoardSession } from "../boards/pi-agent-board.js";
 
@@ -32,6 +32,7 @@ OPTIONS
   --date YYYY-MM-DD     Filter to specific date (default: today)
   --from YYYY-MM-DD     Start of date range
   --to YYYY-MM-DD       End of date range
+  --since <duration>    Rolling window for sessions, e.g. 24h, 90m, 7d
   --project <name|path> Filter by project name or full path
   --provider <name>     Data provider: claude (default), codex, openai, pi, copilot, cursor, claude-desktop, opencode
   --provider-dir <path> Override provider data directory (default: ~/.<provider>)
@@ -68,6 +69,8 @@ interface CliArgs {
 	date?: string;
 	from?: string;
 	to?: string;
+	since?: string;
+	sinceMs?: number;
 	project?: string;
 	provider: Provider;
 	providerDir?: string;
@@ -97,6 +100,7 @@ const VALUE_OPTIONS = new Set([
 	"--date",
 	"--from",
 	"--to",
+	"--since",
 	"--project",
 	"--provider",
 	"--provider-dir",
@@ -119,6 +123,27 @@ function takeValue(args: string[], i: number, flag: string): string {
 		);
 	}
 	return next;
+}
+
+function parseSinceDuration(raw: string): number {
+	const match = raw.trim().match(/^(\d+)(m|h|d|w)$/i);
+	if (!match) {
+		throw new CliError(
+			"INVALID_SINCE",
+			`Invalid --since value: ${raw}. Use a duration like 90m, 24h, 7d, or 2w.`,
+			2,
+			{ value: raw },
+		);
+	}
+	const value = Number.parseInt(match[1], 10);
+	const unit = match[2].toLowerCase();
+	const multipliers: Record<string, number> = {
+		m: 60_000,
+		h: 60 * 60_000,
+		d: 24 * 60 * 60_000,
+		w: 7 * 24 * 60 * 60_000,
+	};
+	return value * multipliers[unit];
 }
 
 function parseArgs(args: string[]): CliArgs {
@@ -145,6 +170,9 @@ function parseArgs(args: string[]): CliArgs {
 			result.from = takeValue(args, i++, arg);
 		} else if (arg === "--to") {
 			result.to = takeValue(args, i++, arg);
+		} else if (arg === "--since") {
+			result.since = takeValue(args, i++, arg);
+			result.sinceMs = parseSinceDuration(result.since);
 		} else if (arg === "--project") {
 			result.project = takeValue(args, i++, arg);
 		} else if (arg === "--provider") {
@@ -201,6 +229,10 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"promptTimestamps",
 		"timeRange",
 		"lastFileActivity",
+		"lastPrompt",
+		"lastPromptTimestamp",
+		"userPromptCount",
+		"activityKind",
 		"dataCompleteness",
 		"sourceCapabilities",
 		"gitBranch",
@@ -220,6 +252,10 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"promptTimestamps",
 		"timeRange",
 		"lastFileActivity",
+		"lastPrompt",
+		"lastPromptTimestamp",
+		"userPromptCount",
+		"activityKind",
 		"dataCompleteness",
 		"sourceCapabilities",
 		"gitBranch",
@@ -339,6 +375,11 @@ function sortSessions<T extends Record<string, any>>(sessions: T[], sort: Sessio
 	});
 }
 
+function applySinceFilter<T extends Record<string, any>>(sessions: T[], cutoffMs?: number): T[] {
+	if (!cutoffMs) return sessions;
+	return sessions.filter((session) => sessionSortValue(session, "recent") >= cutoffMs);
+}
+
 function writeOutput(
 	command: string,
 	provider: Provider,
@@ -427,6 +468,14 @@ function assertValidArgs(args: CliArgs): void {
 		);
 	}
 
+	if (args.since && (args.date || args.from || args.to)) {
+		throw new CliError(
+			"CONFLICTING_DATE_FILTERS",
+			"Use --since by itself, or use --date/--from/--to. Do not combine them.",
+			2,
+		);
+	}
+
 	if (!["recent", "mtime", "start", "end"].includes(args.sort)) {
 		throw new CliError(
 			"INVALID_SORT",
@@ -453,9 +502,10 @@ async function run(args: CliArgs): Promise<void> {
 		privacy: args.privacy,
 	});
 
+	const sinceCutoffMs = args.sinceMs ? Date.now() - args.sinceMs : undefined;
 	const filter = {
 		date: args.date,
-		from: args.from,
+		from: args.from ?? (sinceCutoffMs ? toLocalDate(sinceCutoffMs) : undefined),
 		to: args.to,
 		project: args.project,
 	};
@@ -463,10 +513,11 @@ async function run(args: CliArgs): Promise<void> {
 	switch (args.command) {
 		case "sessions": {
 			const sessionsFilter =
-				args.commandArg && !args.date && !args.from && !args.to
+				args.commandArg && !args.date && !args.from && !args.to && !args.since
 					? { ...filter, from: "2000-01-01", to: "2099-12-31" }
 					: filter;
 			let sessions = await ch.sessions.listWithMeta(sessionsFilter);
+			sessions = applySinceFilter(sessions, sinceCutoffMs);
 			if (args.commandArg) {
 				sessions = sessions.filter((s) => s.sessionId === args.commandArg);
 			}

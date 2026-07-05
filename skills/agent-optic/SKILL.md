@@ -19,7 +19,7 @@ Check `dataCompleteness` and `sourceCapabilities` before assuming full transcrip
 Follow the **discover → filter → drill down → aggregate** pattern:
 
 1. **Orient** — run `agent-optic sessions` to see today's sessions
-2. **Filter** — narrow by `--date`, `--from`/`--to`, `--project`, or session ID
+2. **Filter** — narrow by `--since`, `--date`, `--from`/`--to`, `--project`, or session ID
 3. **Drill down** — use `detail <id>` for full parse or `transcript <id>` for the conversation
 4. **Aggregate** — use `daily`, `tool-usage`, or `export` for summaries
 
@@ -43,6 +43,9 @@ agent-optic detail <session-id> --raw --pretty
 ```bash
 # Today's sessions (default)
 agent-optic sessions --raw --pretty
+
+# Rolling window
+agent-optic sessions --since 24h --raw --pretty
 
 # Specific date
 agent-optic sessions --date 2026-02-15 --raw --pretty
@@ -253,7 +256,7 @@ Combine `--raw --pretty` for readable data-only output. Combine `--raw --fields`
 | Claude | `--provider claude` | `~/.claude` | Default provider |
 | Codex | `--provider codex` | `~/.codex` | OpenAI Codex CLI |
 | OpenAI | `--provider openai` | `~/.codex` | Alias for codex format |
-| Pi | `--provider pi` | `~/.pi` | No history.jsonl — sessions discovered by directory scan |
+| Pi | `--provider pi` | `~/.pi` | No history.jsonl — sessions discovered by directory scan; date filters use actual transcript activity and expose `lastPrompt`, `userPromptCount`, `activityKind` |
 | Copilot | `--provider copilot` | `~/.copilot` | GitHub Copilot CLI |
 | Cursor | `--provider cursor` | `~/Library/Application Support/Cursor/User` | Prompt-level generations from workspace `state.vscdb` files |
 | Claude Desktop | `--provider claude-desktop` | `~/Library/Application Support/Claude` | Local agent-mode metadata from `local_*.json` files, plus full audit transcripts from sibling `audit.jsonl` files when present |
@@ -304,7 +307,7 @@ Array of daily summaries for the requested date range.
 ## Tips
 
 - Use `--format jsonl` for large result sets to avoid memory issues
-- `sessions` defaults to today — use `--from` for historical data
+- `sessions` defaults to today — use `--since 24h` for rolling activity or `--from` for historical data
 - `detail` parses the full session file and is slower than `sessions`
 - `transcript --limit 50` previews without loading everything
 - Combine `--raw` with `--fields` for minimal output

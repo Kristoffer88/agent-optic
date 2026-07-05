@@ -17,6 +17,14 @@ export interface SessionInfo {
 	timeRange: { start: number; end: number };
 	/** Transcript/session file mtime in epoch ms when available. Useful for active-session discovery. */
 	lastFileActivity?: number;
+	/** Last user prompt text when available. Useful for landing/session triage. */
+	lastPrompt?: string;
+	/** Timestamp for lastPrompt in epoch ms when available. */
+	lastPromptTimestamp?: number;
+	/** Number of user prompts captured for this session. */
+	userPromptCount?: number;
+	/** Provider-specific coarse activity kind, e.g. Pi journal-host/tool vs human/cockpit. */
+	activityKind?: string;
 	/** How complete the local provider data is for this session. Omitted means full/legacy provider behavior. */
 	dataCompleteness?: "full" | "prompt-only" | "metadata-only";
 	/** Machine-readable hints for what downstream tools can safely expect. */
