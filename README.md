@@ -21,6 +21,12 @@ bunx --silent agent-optic sessions
 - **Agent-first CLI contract** — stable JSON envelope + JSONL streaming + machine-readable errors
 - **Bun-native** — `Bun.file()`, `Bun.Glob`
 
+### Cost data & staying fully local
+
+`agent-optic` computes token counts and USD cost **entirely locally, with no network access** (see [Security Rules](CLAUDE.md)). The tradeoff: its model pricing is only as current as the installed version, so brand-new models can show as unpriced until you upgrade.
+
+If you don't need strict locality and want the broadest agent coverage with continuously-updated pricing, [`ccusage`](https://ccusage.com) is a good complement — it prices token usage against the community-maintained [LiteLLM](https://github.com/BerriAI/litellm) table and reads the same on-disk session logs (Claude Code, Codex, pi-agent, and ~15 other CLIs). Note it fetches pricing over the network unless you pass `--offline`, which is why it is *not* fully local. A pattern that works well: use `ccusage` for authoritative multi-provider cost and `agent-optic` for the transcript/prompt detail, joined on session id.
+
 ## Install
 
 **Requires [Bun](https://bun.sh) ≥ 1.0.** This package ships TypeScript source and a Bun shebang for the CLI; it does not run under Node.
