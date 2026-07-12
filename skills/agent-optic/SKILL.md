@@ -20,7 +20,7 @@ Follow the **discover → filter → drill down → aggregate** pattern:
 
 1. **Orient** — run `agent-optic sessions` to see today's sessions
 2. **Filter** — narrow by `--since`, `--date`, `--from`/`--to`, `--project`, or session ID
-3. **Drill down** — use `detail <id>` for full parse or `transcript <id>` for the conversation
+3. **Drill down** — use `detail <id>` for a full parse, `evidence <id>` for a complete but bounded search, or `transcript <id>` for the conversation
 4. **Aggregate** — use `daily`, `tool-usage`, or `export` for summaries
 
 ### Example: "What did I work on this week?"
@@ -76,6 +76,14 @@ agent-optic detail <session-id> --raw --pretty
 
 # Select specific fields
 agent-optic detail <session-id> --raw --fields sessionId,model,totalCost,toolCalls
+```
+
+### Evidence
+
+Search an exact session completely while returning only bounded excerpts and footprint data. Use this before loading a large transcript into model context.
+
+```bash
+agent-optic evidence <session-id> --provider pi --terms "feature,parent app" --max-matches 8 --max-chars 4000 --raw --pretty
 ```
 
 ### Transcript

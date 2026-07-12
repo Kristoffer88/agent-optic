@@ -401,6 +401,9 @@ bunx --silent agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider
 # Transcript stream (limit + selected fields)
 bunx --silent agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50 --fields timestamp,message
 
+# Complete local scan with bounded, cursor-addressable evidence
+bunx --silent agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --terms "Sample Dashboard,Example App" --max-matches 8 --max-chars 4000
+
 # Tool usage report
 bunx --silent agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
 
@@ -423,6 +426,7 @@ Common agent commands:
 - `sessions [session-id?]` list sessions (or filter to one ID)
 - `detail <session-id>` full parsed session
 - `transcript <session-id>` transcript stream/output
+- `evidence <session-id>` scan the complete transcript and return bounded matches, prompts, paths, and tool names
 - `tool-usage` aggregated tool analytics
 
 ## Architecture

@@ -38,6 +38,18 @@ export function redactString(text: string, config: PrivacyConfig): string {
 	return result;
 }
 
+function redactUnknown(value: unknown, config: PrivacyConfig): unknown {
+	if (typeof value === "string") return redactString(value, config);
+	if (Array.isArray(value)) return value.map((item) => redactUnknown(item, config));
+	if (!value || typeof value !== "object") return value;
+	return Object.fromEntries(
+		Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+			key,
+			redactUnknown(item, config),
+		]),
+	);
+}
+
 /** Filter content blocks according to privacy config. */
 function filterContentBlocks(
 	blocks: ContentBlock[],
@@ -49,8 +61,13 @@ function filterContentBlocks(
 		if (config.stripThinking && block.type === "thinking") continue;
 		if (config.stripToolResults && block.type === "tool_result") continue;
 
-		if (block.text && shouldRedactStrings(config)) {
-			filtered.push({ ...block, text: redactString(block.text, config) });
+		if (shouldRedactStrings(config)) {
+			filtered.push({
+				...block,
+				...(block.text ? { text: redactString(block.text, config) } : {}),
+				...(block.input ? { input: redactUnknown(block.input, config) as Record<string, unknown> } : {}),
+				...(typeof block.content === "string" ? { content: redactString(block.content, config) } : {}),
+			});
 		} else {
 			filtered.push(block);
 		}

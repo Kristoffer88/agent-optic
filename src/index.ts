@@ -16,6 +16,15 @@ export type {
 	ToolCallSummary,
 } from "./types/session.js";
 export type { ContentBlock, TranscriptEntry } from "./types/transcript.js";
+export type {
+	EvidenceKind,
+	EvidenceRole,
+	SessionEvidence,
+	SessionEvidenceMatch,
+	SessionEvidenceOptions,
+	SessionEvidencePrompt,
+} from "./types/evidence.js";
+export { collectSessionEvidence } from "./collectors/session-evidence.js";
 export type { TaskInfo, TodoItem } from "./types/task.js";
 export type { PlanInfo } from "./types/plan.js";
 export type { ProjectInfo, ProjectMemory } from "./types/project.js";

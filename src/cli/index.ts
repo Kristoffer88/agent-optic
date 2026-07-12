@@ -6,6 +6,7 @@ import type { Provider } from "../types/provider.js";
 import { today, toLocalDate } from "../utils/dates.js";
 import { defaultProviderDir, isProvider } from "../utils/providers.js";
 import { renderPiAgentBoard, type PiAgentBoardSession } from "../boards/pi-agent-board.js";
+import { collectSessionEvidence } from "../collectors/session-evidence.js";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -21,6 +22,7 @@ COMMANDS
   sessions <optional-id>   List sessions with metadata
   detail <session-id>      Show full detail for one session
   transcript <session-id>  Stream/print transcript entries
+  evidence <session-id>    Search a complete session and return bounded evidence
   tool-usage               Show aggregated tool usage
   projects                 List all projects
   stats                    Show pre-computed stats
@@ -41,6 +43,9 @@ OPTIONS
   --fields <a,b,c>      Select object fields (top-level)
   --sort <mode>         Sort sessions: recent (default), mtime, start, end
   --limit <n>           Limit array/stream length
+  --terms <a,b>         Evidence search terms (comma-separated)
+  --max-matches <n>     Maximum evidence matches (default: 8)
+  --max-chars <n>       Character budget for evidence excerpts (default: 4000)
   --pretty              Pretty-print JSON output
   --raw                 Disable output envelope (data only)
   --out <file>          Output file for commands that generate files (pi-board)
@@ -50,6 +55,7 @@ EXAMPLES
   agent-optic sessions --provider codex --format jsonl
   agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai
   agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50
+  agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --terms "Sample Dashboard,Example App"
   agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
   agent-optic sessions --provider codex --date 2026-02-09
   agent-optic sessions --provider openai --date 2026-02-09
@@ -79,6 +85,9 @@ interface CliArgs {
 	fields?: string[];
 	sort: SessionSort;
 	limit?: number;
+	terms?: string[];
+	maxMatches?: number;
+	maxChars?: number;
 	out?: string;
 	pretty: boolean;
 	raw: boolean;
@@ -109,6 +118,9 @@ const VALUE_OPTIONS = new Set([
 	"--fields",
 	"--sort",
 	"--limit",
+	"--terms",
+	"--max-matches",
+	"--max-chars",
 	"--out",
 ]);
 
@@ -202,6 +214,19 @@ function parseArgs(args: string[]): CliArgs {
 				);
 			}
 			result.limit = parsed;
+		} else if (arg === "--terms") {
+			result.terms = takeValue(args, i++, arg)
+				.split(",")
+				.map((term) => term.trim())
+				.filter(Boolean);
+		} else if (arg === "--max-matches" || arg === "--max-chars") {
+			const raw = takeValue(args, i++, arg);
+			const parsed = Number.parseInt(raw, 10);
+			if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== raw.trim()) {
+				throw new CliError("INVALID_EVIDENCE_LIMIT", `Invalid ${arg} value: ${raw}. Must be a positive integer.`, 2, { option: arg, value: raw });
+			}
+			if (arg === "--max-matches") result.maxMatches = parsed;
+			else result.maxChars = parsed;
 		} else if (arg === "--out") {
 			result.out = takeValue(args, i++, arg);
 		} else if (arg === "--pretty") {
@@ -272,6 +297,16 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"planReferenced",
 		"thinkingBlockCount",
 		"hasSidechains",
+	],
+	evidence: [
+		"schemaVersion",
+		"sessionId",
+		"terms",
+		"scanned",
+		"prompts",
+		"footprint",
+		"matches",
+		"truncated",
 	],
 	transcript: [
 		"type",
@@ -573,6 +608,26 @@ async function run(args: CliArgs): Promise<void> {
 				if (args.limit && entries.length >= args.limit) break;
 			}
 			writeOutput("transcript", args.provider, entries, args);
+			return;
+		}
+
+		case "evidence": {
+			if (!args.commandArg) {
+				throw new CliError(
+					"MISSING_ARGUMENT",
+					"Missing session ID. Usage: agent-optic evidence <session-id>",
+				);
+			}
+			const evidence = await collectSessionEvidence(
+				ch.sessions.transcript(args.commandArg, args.project),
+				{
+					sessionId: args.commandArg,
+					terms: args.terms,
+					maxMatches: args.maxMatches,
+					maxChars: args.maxChars,
+				},
+			);
+			writeOutput("evidence", args.provider, evidence, args);
 			return;
 		}
 
