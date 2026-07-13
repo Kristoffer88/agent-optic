@@ -35,7 +35,8 @@
 		"url": "git+https://github.com/Kristoffer88/agent-optic.git"
 	},
 	"scripts": {
-		"knip": "knip"
+		"knip": "knip",
+		"eval:pi-lifecycle": "bun evals/pi-lifecycle/run.ts"
 	},
 	"engines": {
 		"bun": ">=1.0.0"

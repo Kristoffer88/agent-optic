@@ -85,6 +85,9 @@ export async function readPiHistory(
 		let firstEventTimestamp: number | undefined;
 		let lastEventTimestamp: number | undefined;
 		let lastFileActivity: number | undefined;
+		let lastMessageRole: string | undefined;
+		let lastMessageStopReason: string | undefined;
+		let lastMessageTimestamp: number | undefined;
 		const prompts: string[] = [];
 		const promptTimestamps: number[] = [];
 
@@ -116,11 +119,18 @@ export async function readPiHistory(
 					sessionTimestamp = eventTimestamp ?? (typeof entry.timestamp === "string" ? new Date(entry.timestamp).getTime() : undefined);
 				}
 
-				if (entry.type === "message" && entry.message?.role === "user") {
-					const promptText = piUserPromptText(entry.message.content);
-					if (promptText) {
-						prompts.push(promptText);
-						promptTimestamps.push(eventTimestamp ?? sessionTimestamp ?? firstEventTimestamp ?? new Date(parsed.date).getTime());
+				if (entry.type === "message" && entry.message) {
+					if (typeof entry.message.role === "string") {
+						lastMessageRole = entry.message.role;
+						lastMessageStopReason = typeof entry.message.stopReason === "string" ? entry.message.stopReason : undefined;
+						lastMessageTimestamp = eventTimestamp;
+					}
+					if (entry.message.role === "user") {
+						const promptText = piUserPromptText(entry.message.content);
+						if (promptText) {
+							prompts.push(promptText);
+							promptTimestamps.push(eventTimestamp ?? sessionTimestamp ?? firstEventTimestamp ?? new Date(parsed.date).getTime());
+						}
 					}
 				}
 			}
@@ -157,8 +167,11 @@ export async function readPiHistory(
 			lastPromptTimestamp: promptTimestamps[promptTimestamps.length - 1],
 			userPromptCount: prompts.length,
 			activityKind: classifyPiActivity(prompts),
+			lastMessageRole,
+			lastMessageStopReason,
+			lastMessageTimestamp,
 			dataCompleteness: "full",
-			sourceCapabilities: ["prompt", "transcript", "assistant-summary", "tool-calls", "files-referenced", "tokens", "cost", "model", "project", "timestamps"],
+			sourceCapabilities: ["prompt", "transcript", "assistant-summary", "tool-calls", "files-referenced", "tokens", "cost", "model", "project", "timestamps", "lifecycle-event"],
 		});
 	}
 

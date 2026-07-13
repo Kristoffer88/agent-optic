@@ -25,6 +25,12 @@ export interface SessionInfo {
 	userPromptCount?: number;
 	/** Provider-specific coarse activity kind, e.g. Pi journal-host/tool vs human/cockpit. */
 	activityKind?: string;
+	/** Role of the latest structured transcript message when the provider exposes it. */
+	lastMessageRole?: string;
+	/** Provider stop reason on the latest message, when present. */
+	lastMessageStopReason?: string;
+	/** Timestamp of the latest structured transcript message in epoch ms. */
+	lastMessageTimestamp?: number;
 	/** How complete the local provider data is for this session. Omitted means full/legacy provider behavior. */
 	dataCompleteness?: "full" | "prompt-only" | "metadata-only";
 	/** Machine-readable hints for what downstream tools can safely expect. */
@@ -63,7 +69,8 @@ export type SourceCapability =
 	| "cost"
 	| "model"
 	| "project"
-	| "timestamps";
+	| "timestamps"
+	| "lifecycle-event";
 
 export type ToolCategory =
 	| "file_read"
