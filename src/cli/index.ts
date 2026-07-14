@@ -154,24 +154,25 @@ function takeValue(args: string[], i: number, flag: string): string {
 }
 
 function parseSinceDuration(raw: string): number {
+	const invalidSince = () => new CliError(
+		"INVALID_SINCE",
+		`Invalid --since value: ${raw}. Use a positive duration like 90m, 24h, 7d, or 2w.`,
+		2,
+		{ value: raw },
+	);
 	const match = raw.trim().match(/^(\d+)(m|h|d|w)$/i);
-	if (!match) {
-		throw new CliError(
-			"INVALID_SINCE",
-			`Invalid --since value: ${raw}. Use a duration like 90m, 24h, 7d, or 2w.`,
-			2,
-			{ value: raw },
-		);
-	}
+	if (!match) throw invalidSince();
 	const value = Number.parseInt(match[1], 10);
 	const unit = match[2].toLowerCase();
 	const multipliers: Record<string, number> = {
 		m: 60_000,
 		h: 60 * 60_000,
 		d: 24 * 60 * 60_000,
-		w: 7 * 24 * 60 * 60_000,
+		w: 7 * 24 * 60_000,
 	};
-	return value * multipliers[unit];
+	const duration = value * multipliers[unit];
+	if (!Number.isSafeInteger(duration) || duration < 1) throw invalidSince();
+	return duration;
 }
 
 function parseArgs(args: string[]): CliArgs {
@@ -623,7 +624,12 @@ async function run(args: CliArgs): Promise<void> {
 			maxPrompts: args.maxPrompts,
 			maxPromptChars: args.maxPromptChars,
 		});
-		writeOutput("observe", "multiple", observation, { ...args, limit: undefined });
+		writeOutput(
+			"observe",
+			providers.length === 1 ? canonicalProvider(providers[0]) : "multiple",
+			observation,
+			{ ...args, limit: undefined },
+		);
 		return;
 	}
 
