@@ -168,7 +168,7 @@ function parseSinceDuration(raw: string): number {
 		m: 60_000,
 		h: 60 * 60_000,
 		d: 24 * 60 * 60_000,
-		w: 7 * 24 * 60_000,
+		w: 7 * 24 * 60 * 60_000,
 	};
 	const duration = value * multipliers[unit];
 	if (!Number.isSafeInteger(duration) || duration < 1) throw invalidSince();
