@@ -3,7 +3,6 @@ import type { Provider } from "./provider.js";
 import type {
 	LifecycleMessageRole,
 	LifecycleStopReason,
-	SourceCapability,
 } from "./session.js";
 
 export type CanonicalObservationProvider = Exclude<Provider, "openai">;
@@ -15,6 +14,20 @@ export type ObservationCapability =
 	| "bounded-prompts"
 	| "privacy-profile"
 	| "source-capabilities";
+
+/** Closed source-capability vocabulary owned by agent-optic.observation/v1. */
+export type ObservationSourceCapability =
+	| "prompt"
+	| "transcript"
+	| "assistant-summary"
+	| "tool-calls"
+	| "files-referenced"
+	| "tokens"
+	| "cost"
+	| "model"
+	| "project"
+	| "timestamps"
+	| "lifecycle-event";
 
 export interface ObservationProviderResult {
 	provider: CanonicalObservationProvider;
@@ -44,7 +57,7 @@ export interface ObservedSession {
 	lastMessageStopReason?: LifecycleStopReason;
 	lastMessageTimestamp?: number;
 	dataCompleteness?: "full" | "prompt-only" | "metadata-only";
-	sourceCapabilities?: SourceCapability[];
+	sourceCapabilities?: ObservationSourceCapability[];
 	gitBranch?: string;
 	model?: string;
 	totalInputTokens: number;
