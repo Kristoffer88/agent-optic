@@ -174,7 +174,7 @@ async function readClaudeHistory(
 	// files not already covered and build SessionInfo straight from the transcript.
 	const projectsDir = join(dirname(historyFile), "projects");
 	const known = new Set(sessions.map((s) => s.sessionId));
-	for (const scanned of await scanClaudeProjects(projectsDir, from, to, privacy)) {
+	for (const scanned of await scanClaudeProjects(projectsDir, from, to, privacy, known)) {
 		if (!known.has(scanned.sessionId)) sessions.push(scanned);
 	}
 
@@ -209,12 +209,16 @@ async function scanClaudeProjects(
 	from: string,
 	to: string,
 	privacy: PrivacyConfig,
+	knownSessionIds: ReadonlySet<string>,
 ): Promise<SessionInfo[]> {
 	const sessions: SessionInfo[] = [];
 	const glob = new Bun.Glob("*/*.jsonl");
 
 	for await (const rel of glob.scan({ cwd: projectsDir, absolute: false })) {
 		const sessionId = basename(rel, ".jsonl");
+		// History-backed sessions already supplied the result that wins below;
+		// avoid reading and parsing transcripts whose scan would be discarded.
+		if (knownSessionIds.has(sessionId)) continue;
 		const file = Bun.file(join(projectsDir, rel));
 
 		// Cheap pre-filter: a file last written before the window can't hold in-range records.
