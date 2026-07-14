@@ -33,6 +33,7 @@ describe("collectSessionObservation", () => {
 		};
 		(rows.pi?.[1] as SessionMeta & { futurePrivateField: string }).futurePrivateField = "must-not-escape-v1";
 		(rows.pi?.[1].timeRange as { start: number; end: number; futureNestedField: string }).futureNestedField = "nested-must-not-escape-v1";
+		rows.pi![1].sourceCapabilities = ["prompt", "future-capability"] as unknown as SessionMeta["sourceCapabilities"];
 		const observation = await collectForTest({
 			providers: ["pi", "codex", "claude", "pi"],
 			maxSessions: 2,
@@ -55,6 +56,8 @@ describe("collectSessionObservation", () => {
 		expect(observation.capabilities).toContain("provider-health");
 		expect(JSON.stringify(observation)).not.toContain("must-not-escape-v1");
 		expect(JSON.stringify(observation)).not.toContain("nested-must-not-escape-v1");
+		expect(JSON.stringify(observation)).not.toContain("future-capability");
+		expect(observation.sessions[0].sourceCapabilities).toEqual(["prompt"]);
 		expect(observation.providers.find((item) => item.provider === "claude")?.status).toBe("absent");
 	});
 
@@ -80,6 +83,28 @@ describe("collectSessionObservation", () => {
 		expect(error?.code).toBe("PROVIDER_READ_FAILED");
 		expect(error?.message).not.toContain("/Users/example");
 		expect(error?.message).toContain("private/token.json");
+	});
+
+	test("records and forwards the effective default date", async () => {
+		const filters: unknown[] = [];
+		const now = new Date(2026, 0, 2, 12).getTime();
+		const observation = await collectForTest({
+			providers: ["pi"],
+		}, {
+			existsSync: () => true,
+			createHistory: (() => ({
+				sessions: {
+					listWithMeta: async (filter: unknown) => {
+						filters.push(filter);
+						return [];
+					},
+				},
+			})) as any,
+			now: () => now,
+		});
+
+		expect(observation.query.date).toBe("2026-01-02");
+		expect(filters).toEqual([{ date: "2026-01-02", from: undefined, to: undefined, project: undefined }]);
 	});
 
 	test("forwards an exact date and canonicalizes the OpenAI alias once", async () => {
