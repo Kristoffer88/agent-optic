@@ -110,6 +110,13 @@ function boundedSession(
  */
 export async function collectSessionObservation(
 	options: SessionObservationOptions,
+): Promise<SessionObservation> {
+	return collectSessionObservationWithDependencies(options);
+}
+
+/** @internal Deterministic dependency seam for contract tests. */
+export async function collectSessionObservationWithDependencies(
+	options: SessionObservationOptions,
 	dependencies: SessionObservationDependencies = {},
 ): Promise<SessionObservation> {
 	if (!Array.isArray(options.providers) || options.providers.length === 0) {
