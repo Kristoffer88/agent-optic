@@ -14,6 +14,7 @@ export type {
 	SessionInfo,
 	SessionMeta,
 	SessionDetail,
+	SourceCapability,
 	ToolCategory,
 	ToolCallSummary,
 } from "./types/session.js";
