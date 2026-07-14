@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import { createHistory } from "../agent-optic.js";
 import { resolvePrivacyConfig } from "../privacy/config.js";
 import { redactString } from "../privacy/redact.js";
-import type { Provider } from "../types/provider.js";
 import type { SessionMeta } from "../types/session.js";
 import type {
 	CanonicalObservationProvider,
