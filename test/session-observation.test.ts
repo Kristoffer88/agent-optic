@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { collectSessionObservation } from "../src/collectors/session-observation.js";
+import { collectSessionObservationWithDependencies } from "../src/collectors/session-observation.js";
 import type { Provider } from "../src/types/provider.js";
 import type { SessionMeta } from "../src/types/session.js";
 
@@ -28,7 +28,7 @@ describe("collectSessionObservation", () => {
 		};
 		(rows.pi?.[1] as SessionMeta & { futurePrivateField: string }).futurePrivateField = "must-not-escape-v1";
 		(rows.pi?.[1].timeRange as { start: number; end: number; futureNestedField: string }).futureNestedField = "nested-must-not-escape-v1";
-		const observation = await collectSessionObservation({
+		const observation = await collectSessionObservationWithDependencies({
 			providers: ["pi", "codex", "claude", "pi"],
 			maxSessions: 2,
 			maxPrompts: 2,
@@ -54,7 +54,7 @@ describe("collectSessionObservation", () => {
 	});
 
 	test("keeps partial evidence and returns a sanitized provider error", async () => {
-		const observation = await collectSessionObservation({
+		const observation = await collectSessionObservationWithDependencies({
 			providers: ["pi", "codex"],
 			privacy: "shareable",
 		}, {
@@ -79,7 +79,7 @@ describe("collectSessionObservation", () => {
 
 	test("forwards an exact date and canonicalizes the OpenAI alias once", async () => {
 		const filters: unknown[] = [];
-		const observation = await collectSessionObservation({
+		const observation = await collectSessionObservationWithDependencies({
 			providers: ["openai", "codex"],
 			date: "2026-01-02",
 		}, {
