@@ -25,6 +25,15 @@ export type {
 	SessionEvidencePrompt,
 } from "./types/evidence.js";
 export { collectSessionEvidence } from "./collectors/session-evidence.js";
+export { collectSessionObservation } from "./collectors/session-observation.js";
+export type {
+	ObservedSession,
+	ObservationAvailability,
+	ObservationProviderResult,
+	ObservationProviderStatus,
+	SessionObservation,
+	SessionObservationOptions,
+} from "./types/observation.js";
 export type { TaskInfo, TodoItem } from "./types/task.js";
 export type { PlanInfo } from "./types/plan.js";
 export type { ProjectInfo, ProjectMemory } from "./types/project.js";
