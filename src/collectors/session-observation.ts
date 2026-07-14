@@ -5,17 +5,26 @@ import { redactString } from "../privacy/redact.js";
 import type { Provider } from "../types/provider.js";
 import type { SessionMeta } from "../types/session.js";
 import type {
+	CanonicalObservationProvider,
 	ObservedSession,
+	ObservationCapability,
 	ObservationProviderResult,
 	SessionObservation,
 	SessionObservationOptions,
 } from "../types/observation.js";
 import { toLocalDate } from "../utils/dates.js";
-import { defaultProviderDir } from "../utils/providers.js";
+import { canonicalProvider, defaultProviderDir, isProvider } from "../utils/providers.js";
 
 const DEFAULT_MAX_SESSIONS = 25;
 const DEFAULT_MAX_PROMPTS = 5;
 const DEFAULT_MAX_PROMPT_CHARS = 600;
+const OBSERVATION_CAPABILITIES: ObservationCapability[] = [
+	"provider-health",
+	"bounded-sessions",
+	"bounded-prompts",
+	"privacy-profile",
+	"source-capabilities",
+];
 
 type HistoryFactory = typeof createHistory;
 
@@ -57,7 +66,7 @@ function safeErrorMessage(error: unknown, privacy: ReturnType<typeof resolvePriv
 }
 
 function boundedSession(
-	provider: Provider,
+	provider: CanonicalObservationProvider,
 	session: SessionMeta,
 	maxPrompts: number,
 	maxPromptChars: number,
@@ -66,14 +75,33 @@ function boundedSession(
 		.slice(-maxPrompts)
 		.map((prompt) => cleanPrompt(String(prompt), maxPromptChars));
 	return {
-		...session,
 		provider,
+		sessionId: session.sessionId,
+		project: session.project,
+		projectName: session.projectName,
 		prompts,
 		promptTimestamps: Array.isArray(session.promptTimestamps)
 			? session.promptTimestamps.slice(-maxPrompts)
 			: [],
+		timeRange: session.timeRange,
+		lastFileActivity: session.lastFileActivity,
 		lastPrompt: prompts.at(-1) ?? (session.lastPrompt ? cleanPrompt(String(session.lastPrompt), maxPromptChars) : undefined),
+		lastPromptTimestamp: session.lastPromptTimestamp,
 		userPromptCount: session.userPromptCount ?? session.prompts?.length ?? 0,
+		activityKind: session.activityKind,
+		lastMessageRole: session.lastMessageRole,
+		lastMessageStopReason: session.lastMessageStopReason,
+		lastMessageTimestamp: session.lastMessageTimestamp,
+		dataCompleteness: session.dataCompleteness,
+		sourceCapabilities: session.sourceCapabilities ? [...session.sourceCapabilities] : undefined,
+		gitBranch: session.gitBranch,
+		model: session.model,
+		totalInputTokens: session.totalInputTokens,
+		totalOutputTokens: session.totalOutputTokens,
+		cacheCreationInputTokens: session.cacheCreationInputTokens,
+		cacheReadInputTokens: session.cacheReadInputTokens,
+		messageCount: session.messageCount,
+		totalCost: session.totalCost,
 	};
 }
 
@@ -85,8 +113,12 @@ export async function collectSessionObservation(
 	options: SessionObservationOptions,
 	dependencies: SessionObservationDependencies = {},
 ): Promise<SessionObservation> {
-	const providers = [...new Set(options.providers)];
-	if (providers.length === 0) throw new Error("providers must contain at least one provider");
+	if (!Array.isArray(options.providers) || options.providers.length === 0) {
+		throw new Error("providers must contain at least one provider");
+	}
+	const invalidProviders = options.providers.filter((provider) => !isProvider(provider));
+	if (invalidProviders.length > 0) throw new Error(`Unsupported provider: ${invalidProviders.join(", ")}`);
+	const providers = [...new Set(options.providers.map((provider) => canonicalProvider(provider)))];
 	const maxSessions = positiveInteger(options.maxSessions, DEFAULT_MAX_SESSIONS, "maxSessions");
 	const maxPrompts = positiveInteger(options.maxPrompts, DEFAULT_MAX_PROMPTS, "maxPrompts");
 	const maxPromptChars = positiveInteger(options.maxPromptChars, DEFAULT_MAX_PROMPT_CHARS, "maxPromptChars");
@@ -95,8 +127,15 @@ export async function collectSessionObservation(
 	const makeHistory = dependencies.createHistory ?? createHistory;
 	const pathExists = dependencies.existsSync ?? existsSync;
 	const now = (dependencies.now ?? Date.now)();
+	if (options.sinceMs !== undefined && (!Number.isInteger(options.sinceMs) || options.sinceMs < 1)) {
+		throw new Error("sinceMs must be a positive integer");
+	}
+	if (options.sinceMs !== undefined && (options.date || options.from || options.to)) {
+		throw new Error("sinceMs cannot be combined with date, from, or to");
+	}
 	const cutoff = options.sinceMs ? now - options.sinceMs : undefined;
 	const filter = {
+		date: options.date,
 		from: options.from ?? (cutoff ? toLocalDate(cutoff) : undefined),
 		to: options.to,
 		project: options.project,
@@ -106,7 +145,9 @@ export async function collectSessionObservation(
 	const collected: ObservedSession[] = [];
 
 	for (const provider of providers) {
-		const providerDir = options.providerDirs?.[provider] ?? defaultProviderDir(provider);
+		const providerDir = options.providerDirs?.[provider]
+			?? (provider === "codex" ? options.providerDirs?.openai : undefined)
+			?? defaultProviderDir(provider);
 		if (!pathExists(providerDir)) {
 			providerResults.push({
 				provider,
@@ -145,18 +186,25 @@ export async function collectSessionObservation(
 			: "unavailable";
 	const sessions = collected
 		.sort((a, b) => sessionSortValue(b) - sessionSortValue(a)
-			|| a.provider.localeCompare(b.provider)
-			|| a.sessionId.localeCompare(b.sessionId))
+			|| (a.provider < b.provider ? -1 : a.provider > b.provider ? 1 : 0)
+			|| (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0))
 		.slice(0, maxSessions);
 
 	return {
 		schemaVersion: "agent-optic.observation/v1",
 		generatedAt: new Date(now).toISOString(),
 		availability,
+		capabilities: [...OBSERVATION_CAPABILITIES],
+		completeness: {
+			observedSessions: collected.length,
+			returnedSessions: sessions.length,
+			truncated: collected.length > sessions.length,
+		},
 		query: {
 			providers,
 			privacy: privacyProfile,
 			...(options.project ? { project: options.project } : {}),
+			...(options.date ? { date: options.date } : {}),
 			...(options.from ? { from: options.from } : {}),
 			...(options.to ? { to: options.to } : {}),
 			...(options.sinceMs ? { sinceMs: options.sinceMs } : {}),
