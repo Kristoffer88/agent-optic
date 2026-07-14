@@ -7,4 +7,5 @@ dist/
 docs/PRD.md
 .ai-usage.jsonl
 .clawpatch/
+.mdcheck/
 evals/pi-lifecycle/out/
