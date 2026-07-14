@@ -25,5 +25,6 @@ test("the 0.6.0 package contains its public contract and advertised validation f
 	expect(files.has("src/types/observation.ts")).toBeTrue();
 	expect(files.has("evals/pi-lifecycle/run.ts")).toBeTrue();
 	expect(files.has("evals/pi-lifecycle/README.md")).toBeTrue();
+	expect(files.has("CHANGELOG.md")).toBeTrue();
 	expect(files.has("SECURITY.md")).toBeTrue();
 });
