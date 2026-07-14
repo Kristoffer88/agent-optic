@@ -49,4 +49,18 @@ describe("Pi lifecycle evidence", () => {
 		expect(sessions[0]?.lastMessageStopReason).toBeUndefined();
 		expect(sessions[0]?.lastMessageTimestamp).toBe(Date.parse("2026-07-13T10:00:03.000Z"));
 	});
+
+	test("ignores unrecognized lifecycle strings instead of exposing them", async () => {
+		const sessionId = "33333333-3333-4333-8333-333333333333";
+		const root = await fixture([
+			{ type: "session", timestamp: "2026-07-13T10:00:00.000Z", cwd: "/workspace/example" },
+			{ type: "message", timestamp: "2026-07-13T10:00:02.000Z", message: { role: "assistant", content: [], stopReason: "stop" } },
+			{ type: "message", timestamp: "2026-07-13T10:00:03.000Z", message: { role: "token=abcdefghijklmnopqrstuvwx", content: [], stopReason: "secret=abcdefghijklmnopqrstuvwx" } },
+		], sessionId);
+
+		const sessions = await readPiHistory(root, "2026-07-13", "2026-07-13", resolvePrivacyConfig("strict"));
+		expect(sessions[0]?.lastMessageRole).toBe("assistant");
+		expect(sessions[0]?.lastMessageStopReason).toBe("stop");
+		expect(JSON.stringify(sessions[0])).not.toContain("abcdefghijklmnopqrstuvwx");
+	});
 });
