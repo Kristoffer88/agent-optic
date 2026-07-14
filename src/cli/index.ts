@@ -570,6 +570,14 @@ function assertValidArgs(args: CliArgs): void {
 		throw new CliError("UNSUPPORTED_OPTION", "--provider-dir requires exactly one observed provider", 2);
 	}
 
+	if (args.command !== "observe" && (args.maxSessions !== undefined || args.maxPrompts !== undefined || args.maxPromptChars !== undefined)) {
+		throw new CliError(
+			"UNSUPPORTED_OPTION",
+			"--max-sessions, --max-prompts, and --max-prompt-chars are supported only by observe",
+			2,
+		);
+	}
+
 	if (args.since && (args.date || args.from || args.to)) {
 		throw new CliError(
 			"CONFLICTING_DATE_FILTERS",
