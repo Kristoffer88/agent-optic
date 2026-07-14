@@ -43,7 +43,7 @@ describe("collectSessionObservation", () => {
 		expect(observation.availability).toBe("partial");
 		expect(observation.query.providers).toEqual(["pi", "codex", "claude"]);
 		expect(observation.sessions.map((item) => item.sessionId)).toEqual(["pi-new", "codex"]);
-		expect(observation.sessions[0].prompts).toEqual(["a very …"]);
+		expect(observation.sessions[0].prompts).toEqual(["a very…"]);
 		expect(observation.providers.find((item) => item.provider === "claude")?.status).toBe("absent");
 	});
 

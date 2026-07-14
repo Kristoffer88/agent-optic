@@ -85,6 +85,6 @@ describe("shareable transcript privacy", () => {
 		}, resolvePrivacyConfig("shareable"));
 
 		const block = filtered?.message?.content;
-		expect(Array.isArray(block) ? block[0]?.input?.path : undefined).toBe("~/projects/private/file.txt");
+		expect(Array.isArray(block) ? block[0]?.input?.path : undefined).toBe("private/file.txt");
 	});
 });
