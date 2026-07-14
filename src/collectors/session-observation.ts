@@ -19,7 +19,7 @@ const DEFAULT_MAX_PROMPT_CHARS = 600;
 
 type HistoryFactory = typeof createHistory;
 
-export interface SessionObservationDependencies {
+interface SessionObservationDependencies {
 	createHistory?: HistoryFactory;
 	existsSync?: typeof existsSync;
 	now?: () => number;
