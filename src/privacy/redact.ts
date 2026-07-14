@@ -17,17 +17,19 @@ export function shouldRedactStrings(config: PrivacyConfig): boolean {
 export function redactString(text: string, config: PrivacyConfig): string {
 	let result = text;
 
+	if (config.redactHomeDir) {
+		result = result.replaceAll(home, "~");
+	}
+
 	if (config.redactAbsolutePaths) {
-		// Replace sensitive home-rooted absolute paths with only their final two segments.
-		// Run this before home-directory shortening so the absolute-path rule still matches.
-		result = result.replace(/\/(?:Users|home)\/[^\s"',;)}\]]+/g, (match) => {
+		// Remove the home identity first. Matching only the non-space home segment avoids
+		// leaking a username when a later directory contains spaces.
+		result = result.replace(/\/(?:Users|home)\/[^/\s"',;)}\]]+/g, "~");
+		// For ordinary no-space paths, retain only the final two useful segments.
+		result = result.replace(/~\/[^\s"',;)}\]]+/g, (match) => {
 			const parts = match.split("/");
 			return parts.length > 2 ? parts.slice(-2).join("/") : match;
 		});
-	}
-
-	if (config.redactHomeDir) {
-		result = result.replaceAll(home, "~");
 	}
 
 	for (const pattern of config.redactPatterns) {
