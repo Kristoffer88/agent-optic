@@ -11,10 +11,10 @@
 | Profile | Strips |
 |---------|--------|
 | `local` (default) | Tool results, thinking blocks |
-| `shareable` | + absolute paths, home directory |
+| `shareable` | + home-rooted paths inside prompt and transcript text |
 | `strict` | + prompt text, emails, credential patterns, IPs |
 
-Review output before sharing.
+Project identity and other metadata fields can still contain absolute paths because local consumers use them for correlation. Privacy profiles are minimization controls, not authorization to publish output. Review and independently scan exact outbound data before sharing it.
 
 ## Reporting vulnerabilities
 
