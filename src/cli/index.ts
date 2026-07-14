@@ -7,6 +7,7 @@ import { today, toLocalDate } from "../utils/dates.js";
 import { defaultProviderDir, isProvider } from "../utils/providers.js";
 import { renderPiAgentBoard, type PiAgentBoardSession } from "../boards/pi-agent-board.js";
 import { collectSessionEvidence } from "../collectors/session-evidence.js";
+import { collectSessionObservation } from "../collectors/session-observation.js";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -23,6 +24,7 @@ COMMANDS
   detail <session-id>      Show full detail for one session
   transcript <session-id>  Stream/print transcript entries
   evidence <session-id>    Search a complete session and return bounded evidence
+  observe                   Return bounded session facts and health across providers
   tool-usage               Show aggregated tool usage
   projects                 List all projects
   stats                    Show pre-computed stats
@@ -37,7 +39,8 @@ OPTIONS
   --since <duration>    Rolling window for sessions, e.g. 24h, 90m, 7d
   --project <name|path> Filter by project name or full path
   --provider <name>     Data provider: claude (default), codex, openai, pi, copilot, cursor, claude-desktop, opencode
-  --provider-dir <path> Override provider data directory (default: ~/.<provider>)
+  --providers <a,b>     Providers for observe (default: pi,claude,codex)
+  --provider-dir <path> Override one provider data directory (default: ~/.<provider>)
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --format <mode>       Output mode: json (default), jsonl
   --fields <a,b,c>      Select object fields (top-level)
@@ -46,6 +49,9 @@ OPTIONS
   --terms <a,b>         Evidence search terms (comma-separated)
   --max-matches <n>     Maximum evidence matches (default: 8)
   --max-chars <n>       Character budget for evidence excerpts (default: 4000)
+  --max-sessions <n>    Maximum observe sessions (default: 25)
+  --max-prompts <n>     Prompts retained per observed session (default: 5)
+  --max-prompt-chars <n> Characters retained per observed prompt (default: 600)
   --pretty              Pretty-print JSON output
   --raw                 Disable output envelope (data only)
   --out <file>          Output file for commands that generate files (pi-board)
@@ -56,6 +62,7 @@ EXAMPLES
   agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai
   agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50
   agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --terms "Sample Dashboard,Example App"
+  agent-optic observe --providers pi,claude,codex --since 24h --privacy shareable
   agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
   agent-optic sessions --provider codex --date 2026-02-09
   agent-optic sessions --provider openai --date 2026-02-09
@@ -79,6 +86,7 @@ interface CliArgs {
 	sinceMs?: number;
 	project?: string;
 	provider: Provider;
+	providers?: Provider[];
 	providerDir?: string;
 	privacy: PrivacyProfile;
 	format: OutputFormat;
@@ -88,6 +96,9 @@ interface CliArgs {
 	terms?: string[];
 	maxMatches?: number;
 	maxChars?: number;
+	maxSessions?: number;
+	maxPrompts?: number;
+	maxPromptChars?: number;
 	out?: string;
 	pretty: boolean;
 	raw: boolean;
@@ -112,6 +123,7 @@ const VALUE_OPTIONS = new Set([
 	"--since",
 	"--project",
 	"--provider",
+	"--providers",
 	"--provider-dir",
 	"--privacy",
 	"--format",
@@ -121,6 +133,9 @@ const VALUE_OPTIONS = new Set([
 	"--terms",
 	"--max-matches",
 	"--max-chars",
+	"--max-sessions",
+	"--max-prompts",
+	"--max-prompt-chars",
 	"--out",
 ]);
 
@@ -189,6 +204,11 @@ function parseArgs(args: string[]): CliArgs {
 			result.project = takeValue(args, i++, arg);
 		} else if (arg === "--provider") {
 			result.provider = takeValue(args, i++, arg) as Provider;
+		} else if (arg === "--providers") {
+			result.providers = takeValue(args, i++, arg)
+				.split(",")
+				.map((provider) => provider.trim())
+				.filter(Boolean) as Provider[];
 		} else if (arg === "--provider-dir") {
 			result.providerDir = takeValue(args, i++, arg);
 		} else if (arg === "--privacy") {
@@ -219,14 +239,17 @@ function parseArgs(args: string[]): CliArgs {
 				.split(",")
 				.map((term) => term.trim())
 				.filter(Boolean);
-		} else if (arg === "--max-matches" || arg === "--max-chars") {
+		} else if (["--max-matches", "--max-chars", "--max-sessions", "--max-prompts", "--max-prompt-chars"].includes(arg)) {
 			const raw = takeValue(args, i++, arg);
 			const parsed = Number.parseInt(raw, 10);
 			if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== raw.trim()) {
-				throw new CliError("INVALID_EVIDENCE_LIMIT", `Invalid ${arg} value: ${raw}. Must be a positive integer.`, 2, { option: arg, value: raw });
+				throw new CliError("INVALID_BOUND", `Invalid ${arg} value: ${raw}. Must be a positive integer.`, 2, { option: arg, value: raw });
 			}
 			if (arg === "--max-matches") result.maxMatches = parsed;
-			else result.maxChars = parsed;
+			else if (arg === "--max-chars") result.maxChars = parsed;
+			else if (arg === "--max-sessions") result.maxSessions = parsed;
+			else if (arg === "--max-prompts") result.maxPrompts = parsed;
+			else result.maxPromptChars = parsed;
 		} else if (arg === "--out") {
 			result.out = takeValue(args, i++, arg);
 		} else if (arg === "--pretty") {
@@ -304,6 +327,7 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"thinkingBlockCount",
 		"hasSidechains",
 	],
+	observe: ["schemaVersion", "generatedAt", "availability", "query", "providers", "sessions"],
 	evidence: [
 		"schemaVersion",
 		"sessionId",
@@ -423,7 +447,7 @@ function applySinceFilter<T extends Record<string, any>>(sessions: T[], cutoffMs
 
 function writeOutput(
 	command: string,
-	provider: Provider,
+	provider: Provider | "multiple",
 	data: unknown,
 	args: CliArgs,
 ): void {
