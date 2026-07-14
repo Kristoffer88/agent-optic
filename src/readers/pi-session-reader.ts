@@ -198,7 +198,7 @@ function piUserPromptText(content: unknown): string | undefined {
 
 function redactPiPrompt(prompt: string, privacy: PrivacyConfig): string {
 	if (privacy.redactPrompts) return "[redacted]";
-	return privacy.redactPatterns.length > 0 ? redactString(prompt, privacy) : prompt;
+	return shouldRedactStrings(privacy) ? redactString(prompt, privacy) : prompt;
 }
 
 function classifyPiActivity(prompts: string[]): string {

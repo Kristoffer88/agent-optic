@@ -131,7 +131,7 @@ export async function readCopilotHistory(
 		const prompt = firstPrompt
 			? privacy.redactPrompts
 				? "[redacted]"
-				: privacy.redactPatterns.length > 0
+				: shouldRedactStrings(privacy)
 					? redactString(firstPrompt, privacy)
 					: firstPrompt
 			: "(no prompt)";

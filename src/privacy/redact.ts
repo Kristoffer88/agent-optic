@@ -17,16 +17,17 @@ export function shouldRedactStrings(config: PrivacyConfig): boolean {
 export function redactString(text: string, config: PrivacyConfig): string {
 	let result = text;
 
-	if (config.redactHomeDir) {
-		result = result.replaceAll(home, "~");
-	}
-
 	if (config.redactAbsolutePaths) {
-		// Replace absolute paths with just the last 2 segments
+		// Replace sensitive home-rooted absolute paths with only their final two segments.
+		// Run this before home-directory shortening so the absolute-path rule still matches.
 		result = result.replace(/\/(?:Users|home)\/[^\s"',;)}\]]+/g, (match) => {
 			const parts = match.split("/");
 			return parts.length > 2 ? parts.slice(-2).join("/") : match;
 		});
+	}
+
+	if (config.redactHomeDir) {
+		result = result.replaceAll(home, "~");
 	}
 
 	for (const pattern of config.redactPatterns) {
@@ -90,18 +91,21 @@ export function filterTranscriptEntry(
 
 	const { role, content } = entry.message;
 
-	// Redact user prompts
 	if (config.redactPrompts && role === "user") {
-		if (typeof content === "string") {
-			return {
-				...entry,
-				message: { ...entry.message, content: "[redacted]" },
-			};
-		}
+		return {
+			...entry,
+			message: { ...entry.message, content: "[redacted]" },
+		};
 	}
 
-	// Filter assistant content blocks
-	if (role === "assistant" && Array.isArray(content)) {
+	if (typeof content === "string" && shouldRedactStrings(config)) {
+		return {
+			...entry,
+			message: { ...entry.message, content: redactString(content, config) },
+		};
+	}
+
+	if (Array.isArray(content)) {
 		const filtered = filterContentBlocks(content as ContentBlock[], config);
 		return {
 			...entry,
