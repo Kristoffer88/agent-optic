@@ -36,6 +36,7 @@ export type {
 	ObservationCapability,
 	ObservationProviderResult,
 	ObservationProviderStatus,
+	ObservationSourceCapability,
 	SessionObservation,
 	SessionObservationOptions,
 } from "./types/observation.js";
