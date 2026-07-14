@@ -19,6 +19,7 @@ bunx --silent agent-optic sessions
 - **Privacy by default** — strips tool results and thinking blocks
 - **Multi-tier session loading** — index, meta, detail, and transcript streaming
 - **Agent-first CLI contract** — stable JSON envelope + JSONL streaming + machine-readable errors
+- **Bounded multi-provider observation** — one versioned snapshot of session facts and provider health
 - **Bun-native** — `Bun.file()`, `Bun.Glob`
 
 ### Cost data & staying fully local
@@ -370,8 +371,10 @@ detectAgentFromCommit(undefined, "copilot-swe-agent[bot]"); // → "github-copil
 | Profile | Strips |
 |---------|--------|
 | `local` (default) | Tool results, thinking blocks |
-| `shareable` | + absolute paths, home directory |
+| `shareable` | + home-rooted paths inside prompt and transcript text |
 | `strict` | + prompt text, emails, credential patterns, IPs |
+
+Project identity fields remain available for local correlation and can contain absolute paths. Privacy profiles minimize content; they do not make arbitrary output safe to publish without review.
 
 ```typescript
 // Use a built-in profile
@@ -404,6 +407,9 @@ bunx --silent agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --prov
 # Complete local scan with bounded, cursor-addressable evidence
 bunx --silent agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --terms "Sample Dashboard,Example App" --max-matches 8 --max-chars 4000
 
+# One bounded observation across provider stores
+bunx --silent agent-optic observe --providers pi,claude,codex --since 24h --privacy shareable --max-sessions 12 --max-prompts 5 --max-prompt-chars 600
+
 # Tool usage report
 bunx --silent agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
 
@@ -427,6 +433,7 @@ Common agent commands:
 - `detail <session-id>` full parsed session
 - `transcript <session-id>` transcript stream/output
 - `evidence <session-id>` scan the complete transcript and return bounded matches, prompts, paths, and tool names
+- `observe` return `agent-optic.observation/v1` session facts plus per-provider `available`, `absent`, or `error` status
 - `tool-usage` aggregated tool analytics
 
 ## Validation
@@ -451,6 +458,7 @@ src/
   readers/              # Per-provider file readers (Claude, Codex, Pi, Copilot, Cursor, Claude Desktop, OpenCode)
   parsers/              # Session parsing, tool categorization, content extraction
   aggregations/         # Daily/project/tool summaries, time estimation
+  collectors/           # Bounded single-session evidence and multi-provider observations
   privacy/              # Redaction engine, privacy profiles, credential detection
   utils/                # Dates, paths, providers
   cli/                  # CLI entry point
