@@ -6,7 +6,7 @@ import type { TranscriptEntry } from "../types/transcript.js";
 import { toLocalDate } from "../utils/dates.js";
 import { projectName, unknownProject } from "../utils/paths.js";
 import { canonicalProvider } from "../utils/providers.js";
-import { isProjectExcluded, redactString } from "../privacy/redact.js";
+import { isProjectExcluded, redactString, shouldRedactStrings } from "../privacy/redact.js";
 import { readCodexSessionHeader } from "./codex-rollout-reader.js";
 import { readPiHistory } from "./pi-session-reader.js";
 import { readCopilotHistory } from "./copilot-session-reader.js";
@@ -138,7 +138,7 @@ async function readClaudeHistory(
 		const existing = sessionMap.get(entry.sessionId);
 		const display = privacy.redactPrompts
 			? "[redacted]"
-			: privacy.redactPatterns.length > 0
+			: shouldRedactStrings(privacy)
 				? redactString(entry.display, privacy)
 				: entry.display;
 
@@ -255,7 +255,7 @@ async function scanClaudeProjects(
 			if (promptText) {
 				const display = privacy.redactPrompts
 					? "[redacted]"
-					: privacy.redactPatterns.length > 0
+					: shouldRedactStrings(privacy)
 						? redactString(promptText, privacy)
 						: promptText;
 				prompts.push(display);
@@ -311,7 +311,7 @@ async function readCodexHistory(
 
 				const prompt = privacy.redactPrompts
 					? "[redacted]"
-					: privacy.redactPatterns.length > 0
+					: shouldRedactStrings(privacy)
 						? redactString(normalized.prompt, privacy)
 						: normalized.prompt;
 
@@ -481,7 +481,7 @@ async function scanCodexRollouts(
 		const prompt = privacy.redactPrompts
 			? "[redacted]"
 			: firstPrompt
-				? privacy.redactPatterns.length > 0
+				? shouldRedactStrings(privacy)
 					? redactString(firstPrompt, privacy)
 					: firstPrompt
 				: "(no prompt)";
