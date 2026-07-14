@@ -1,12 +1,23 @@
 import type { PrivacyProfile } from "./privacy.js";
 import type { Provider } from "./provider.js";
-import type { SessionMeta } from "./session.js";
+import type {
+	LifecycleMessageRole,
+	LifecycleStopReason,
+	SourceCapability,
+} from "./session.js";
 
+export type CanonicalObservationProvider = Exclude<Provider, "openai">;
 export type ObservationAvailability = "available" | "partial" | "unavailable";
 export type ObservationProviderStatus = "available" | "absent" | "error";
+export type ObservationCapability =
+	| "provider-health"
+	| "bounded-sessions"
+	| "bounded-prompts"
+	| "privacy-profile"
+	| "source-capabilities";
 
 export interface ObservationProviderResult {
-	provider: Provider;
+	provider: CanonicalObservationProvider;
 	status: ObservationProviderStatus;
 	sessionCount: number;
 	error?: {
@@ -15,18 +26,50 @@ export interface ObservationProviderResult {
 	};
 }
 
-export interface ObservedSession extends SessionMeta {
-	provider: Provider;
+/** Exact session projection owned by agent-optic.observation/v1. */
+export interface ObservedSession {
+	provider: CanonicalObservationProvider;
+	sessionId: string;
+	project: string;
+	projectName: string;
+	prompts: string[];
+	promptTimestamps: number[];
+	timeRange: { start: number; end: number };
+	lastFileActivity?: number;
+	lastPrompt?: string;
+	lastPromptTimestamp?: number;
+	userPromptCount?: number;
+	activityKind?: string;
+	lastMessageRole?: LifecycleMessageRole;
+	lastMessageStopReason?: LifecycleStopReason;
+	lastMessageTimestamp?: number;
+	dataCompleteness?: "full" | "prompt-only" | "metadata-only";
+	sourceCapabilities?: SourceCapability[];
+	gitBranch?: string;
+	model?: string;
+	totalInputTokens: number;
+	totalOutputTokens: number;
+	cacheCreationInputTokens: number;
+	cacheReadInputTokens: number;
+	messageCount: number;
+	totalCost?: number;
 }
 
 export interface SessionObservation {
 	schemaVersion: "agent-optic.observation/v1";
 	generatedAt: string;
 	availability: ObservationAvailability;
+	capabilities: ObservationCapability[];
+	completeness: {
+		observedSessions: number;
+		returnedSessions: number;
+		truncated: boolean;
+	};
 	query: {
-		providers: Provider[];
+		providers: CanonicalObservationProvider[];
 		privacy: PrivacyProfile;
 		project?: string;
+		date?: string;
 		from?: string;
 		to?: string;
 		sinceMs?: number;
@@ -43,6 +86,7 @@ export interface SessionObservationOptions {
 	privacy?: PrivacyProfile;
 	providerDirs?: Partial<Record<Provider, string>>;
 	project?: string;
+	date?: string;
 	from?: string;
 	to?: string;
 	sinceMs?: number;
