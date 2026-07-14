@@ -4,9 +4,10 @@ import { createHistory } from "../agent-optic.js";
 import type { PrivacyProfile } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import { today, toLocalDate } from "../utils/dates.js";
-import { defaultProviderDir, isProvider } from "../utils/providers.js";
+import { canonicalProvider, defaultProviderDir, isProvider } from "../utils/providers.js";
 import { renderPiAgentBoard, type PiAgentBoardSession } from "../boards/pi-agent-board.js";
 import { collectSessionEvidence } from "../collectors/session-evidence.js";
+import { collectSessionObservation } from "../collectors/session-observation.js";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -23,6 +24,7 @@ COMMANDS
   detail <session-id>      Show full detail for one session
   transcript <session-id>  Stream/print transcript entries
   evidence <session-id>    Search a complete session and return bounded evidence
+  observe                   Return bounded session facts and health across providers
   tool-usage               Show aggregated tool usage
   projects                 List all projects
   stats                    Show pre-computed stats
@@ -36,8 +38,9 @@ OPTIONS
   --to YYYY-MM-DD       End of date range
   --since <duration>    Rolling window for sessions, e.g. 24h, 90m, 7d
   --project <name|path> Filter by project name or full path
-  --provider <name>     Data provider: claude (default), codex, openai, pi, copilot, cursor, claude-desktop, opencode
-  --provider-dir <path> Override provider data directory (default: ~/.<provider>)
+  --provider <name>     Data provider; with observe, select exactly one provider
+  --providers <a,b>     Providers for observe (default: pi,claude,codex)
+  --provider-dir <path> Override provider data; observe requires one effective provider
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --format <mode>       Output mode: json (default), jsonl
   --fields <a,b,c>      Select object fields (top-level)
@@ -46,6 +49,9 @@ OPTIONS
   --terms <a,b>         Evidence search terms (comma-separated)
   --max-matches <n>     Maximum evidence matches (default: 8)
   --max-chars <n>       Character budget for evidence excerpts (default: 4000)
+  --max-sessions <n>    Maximum observe sessions (default: 25)
+  --max-prompts <n>     Prompts retained per observed session (default: 5)
+  --max-prompt-chars <n> Characters retained per observed prompt (default: 600)
   --pretty              Pretty-print JSON output
   --raw                 Disable output envelope (data only)
   --out <file>          Output file for commands that generate files (pi-board)
@@ -56,6 +62,7 @@ EXAMPLES
   agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai
   agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50
   agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --terms "Sample Dashboard,Example App"
+  agent-optic observe --providers pi,claude,codex --since 24h --privacy shareable
   agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
   agent-optic sessions --provider codex --date 2026-02-09
   agent-optic sessions --provider openai --date 2026-02-09
@@ -79,6 +86,8 @@ interface CliArgs {
 	sinceMs?: number;
 	project?: string;
 	provider: Provider;
+	providerExplicit: boolean;
+	providers?: Provider[];
 	providerDir?: string;
 	privacy: PrivacyProfile;
 	format: OutputFormat;
@@ -88,6 +97,9 @@ interface CliArgs {
 	terms?: string[];
 	maxMatches?: number;
 	maxChars?: number;
+	maxSessions?: number;
+	maxPrompts?: number;
+	maxPromptChars?: number;
 	out?: string;
 	pretty: boolean;
 	raw: boolean;
@@ -112,6 +124,7 @@ const VALUE_OPTIONS = new Set([
 	"--since",
 	"--project",
 	"--provider",
+	"--providers",
 	"--provider-dir",
 	"--privacy",
 	"--format",
@@ -121,6 +134,9 @@ const VALUE_OPTIONS = new Set([
 	"--terms",
 	"--max-matches",
 	"--max-chars",
+	"--max-sessions",
+	"--max-prompts",
+	"--max-prompt-chars",
 	"--out",
 ]);
 
@@ -138,15 +154,14 @@ function takeValue(args: string[], i: number, flag: string): string {
 }
 
 function parseSinceDuration(raw: string): number {
+	const invalidSince = () => new CliError(
+		"INVALID_SINCE",
+		`Invalid --since value: ${raw}. Use a positive duration like 90m, 24h, 7d, or 2w.`,
+		2,
+		{ value: raw },
+	);
 	const match = raw.trim().match(/^(\d+)(m|h|d|w)$/i);
-	if (!match) {
-		throw new CliError(
-			"INVALID_SINCE",
-			`Invalid --since value: ${raw}. Use a duration like 90m, 24h, 7d, or 2w.`,
-			2,
-			{ value: raw },
-		);
-	}
+	if (!match) throw invalidSince();
 	const value = Number.parseInt(match[1], 10);
 	const unit = match[2].toLowerCase();
 	const multipliers: Record<string, number> = {
@@ -155,13 +170,16 @@ function parseSinceDuration(raw: string): number {
 		d: 24 * 60 * 60_000,
 		w: 7 * 24 * 60 * 60_000,
 	};
-	return value * multipliers[unit];
+	const duration = value * multipliers[unit];
+	if (!Number.isSafeInteger(duration) || duration < 1) throw invalidSince();
+	return duration;
 }
 
 function parseArgs(args: string[]): CliArgs {
 	const result: CliArgs = {
 		command: "",
 		provider: "claude",
+		providerExplicit: false,
 		privacy: "local",
 		format: "json",
 		sort: "recent",
@@ -189,6 +207,12 @@ function parseArgs(args: string[]): CliArgs {
 			result.project = takeValue(args, i++, arg);
 		} else if (arg === "--provider") {
 			result.provider = takeValue(args, i++, arg) as Provider;
+			result.providerExplicit = true;
+		} else if (arg === "--providers") {
+			result.providers = takeValue(args, i++, arg)
+				.split(",")
+				.map((provider) => provider.trim())
+				.filter(Boolean) as Provider[];
 		} else if (arg === "--provider-dir") {
 			result.providerDir = takeValue(args, i++, arg);
 		} else if (arg === "--privacy") {
@@ -219,14 +243,20 @@ function parseArgs(args: string[]): CliArgs {
 				.split(",")
 				.map((term) => term.trim())
 				.filter(Boolean);
-		} else if (arg === "--max-matches" || arg === "--max-chars") {
+		} else if (["--max-matches", "--max-chars", "--max-sessions", "--max-prompts", "--max-prompt-chars"].includes(arg)) {
 			const raw = takeValue(args, i++, arg);
 			const parsed = Number.parseInt(raw, 10);
 			if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== raw.trim()) {
-				throw new CliError("INVALID_EVIDENCE_LIMIT", `Invalid ${arg} value: ${raw}. Must be a positive integer.`, 2, { option: arg, value: raw });
+				const code = arg === "--max-matches" || arg === "--max-chars"
+					? "INVALID_EVIDENCE_LIMIT"
+					: "INVALID_BOUND";
+				throw new CliError(code, `Invalid ${arg} value: ${raw}. Must be a positive integer.`, 2, { option: arg, value: raw });
 			}
 			if (arg === "--max-matches") result.maxMatches = parsed;
-			else result.maxChars = parsed;
+			else if (arg === "--max-chars") result.maxChars = parsed;
+			else if (arg === "--max-sessions") result.maxSessions = parsed;
+			else if (arg === "--max-prompts") result.maxPrompts = parsed;
+			else result.maxPromptChars = parsed;
 		} else if (arg === "--out") {
 			result.out = takeValue(args, i++, arg);
 		} else if (arg === "--pretty") {
@@ -258,6 +288,9 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"lastPromptTimestamp",
 		"userPromptCount",
 		"activityKind",
+		"lastMessageRole",
+		"lastMessageStopReason",
+		"lastMessageTimestamp",
 		"dataCompleteness",
 		"sourceCapabilities",
 		"gitBranch",
@@ -281,6 +314,9 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"lastPromptTimestamp",
 		"userPromptCount",
 		"activityKind",
+		"lastMessageRole",
+		"lastMessageStopReason",
+		"lastMessageTimestamp",
 		"dataCompleteness",
 		"sourceCapabilities",
 		"gitBranch",
@@ -298,6 +334,7 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"thinkingBlockCount",
 		"hasSidechains",
 	],
+	observe: ["schemaVersion", "generatedAt", "availability", "capabilities", "completeness", "query", "providers", "sessions"],
 	evidence: [
 		"schemaVersion",
 		"sessionId",
@@ -417,7 +454,7 @@ function applySinceFilter<T extends Record<string, any>>(sessions: T[], cutoffMs
 
 function writeOutput(
 	command: string,
-	provider: Provider,
+	provider: Provider | "multiple",
 	data: unknown,
 	args: CliArgs,
 ): void {
@@ -481,6 +518,11 @@ function printError(error: CliError, args?: CliArgs): void {
 	console.error(text);
 }
 
+function observedProviders(args: CliArgs): Provider[] {
+	const requested = args.providers ?? (args.providerExplicit ? [args.provider] : ["pi", "claude", "codex"]);
+	return [...new Set(requested.map((provider) => canonicalProvider(provider)))];
+}
+
 function assertValidArgs(args: CliArgs): void {
 	if (!["local", "shareable", "strict"].includes(args.privacy)) {
 		throw new CliError(
@@ -500,6 +542,40 @@ function assertValidArgs(args: CliArgs): void {
 		throw new CliError(
 			"INVALID_FORMAT",
 			`Invalid format: ${args.format}. Use: json, jsonl`,
+		);
+	}
+
+	if (args.providers) {
+		if (args.providers.length === 0) {
+			throw new CliError("INVALID_PROVIDER", "--providers must contain at least one provider", 2);
+		}
+		const invalid = args.providers.filter((provider) => !isProvider(provider));
+		if (invalid.length > 0) {
+			throw new CliError(
+				"INVALID_PROVIDER",
+				`Invalid provider(s): ${invalid.join(", ")}`,
+				2,
+				{ providers: invalid },
+			);
+		}
+		if (args.command !== "observe") {
+			throw new CliError("UNSUPPORTED_OPTION", "--providers is supported only by observe", 2);
+		}
+	}
+
+	if (args.command === "observe" && args.providers && args.providerExplicit) {
+		throw new CliError("UNSUPPORTED_OPTION", "Use either --provider or --providers with observe, not both", 2);
+	}
+
+	if (args.command === "observe" && args.providerDir && observedProviders(args).length !== 1) {
+		throw new CliError("UNSUPPORTED_OPTION", "--provider-dir requires exactly one observed provider", 2);
+	}
+
+	if (args.command !== "observe" && (args.maxSessions !== undefined || args.maxPrompts !== undefined || args.maxPromptChars !== undefined)) {
+		throw new CliError(
+			"UNSUPPORTED_OPTION",
+			"--max-sessions, --max-prompts, and --max-prompt-chars are supported only by observe",
+			2,
 		);
 	}
 
@@ -529,6 +605,33 @@ async function run(args: CliArgs): Promise<void> {
 	if (args.command === "pi-board") args.provider = "pi";
 
 	assertValidArgs(args);
+
+	if (args.command === "observe") {
+		const providers = observedProviders(args);
+		const providerDirs = args.providerDir && providers.length === 1
+			? { [providers[0]]: args.providerDir }
+			: undefined;
+		const observation = await collectSessionObservation({
+			providers,
+			privacy: args.privacy,
+			providerDirs,
+			project: args.project,
+			date: args.date,
+			from: args.from,
+			to: args.to,
+			sinceMs: args.sinceMs,
+			maxSessions: args.maxSessions ?? args.limit,
+			maxPrompts: args.maxPrompts,
+			maxPromptChars: args.maxPromptChars,
+		});
+		writeOutput(
+			"observe",
+			providers.length === 1 ? canonicalProvider(providers[0]) : "multiple",
+			observation,
+			{ ...args, limit: undefined },
+		);
+		return;
+	}
 
 	const providerDir = args.providerDir ?? defaultProviderDir(args.provider);
 	const ch = createHistory({

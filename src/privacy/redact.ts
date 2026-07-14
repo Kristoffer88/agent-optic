@@ -22,8 +22,11 @@ export function redactString(text: string, config: PrivacyConfig): string {
 	}
 
 	if (config.redactAbsolutePaths) {
-		// Replace absolute paths with just the last 2 segments
-		result = result.replace(/\/(?:Users|home)\/[^\s"',;)}\]]+/g, (match) => {
+		// Remove the home identity first. Matching only the non-space home segment avoids
+		// leaking a username when a later directory contains spaces.
+		result = result.replace(/\/(?:Users|home)\/[^/\s"',;)}\]]+/g, "~");
+		// For ordinary no-space paths, retain only the final two useful segments.
+		result = result.replace(/~\/[^\s"',;)}\]]+/g, (match) => {
 			const parts = match.split("/");
 			return parts.length > 2 ? parts.slice(-2).join("/") : match;
 		});
@@ -90,18 +93,21 @@ export function filterTranscriptEntry(
 
 	const { role, content } = entry.message;
 
-	// Redact user prompts
 	if (config.redactPrompts && role === "user") {
-		if (typeof content === "string") {
-			return {
-				...entry,
-				message: { ...entry.message, content: "[redacted]" },
-			};
-		}
+		return {
+			...entry,
+			message: { ...entry.message, content: "[redacted]" },
+		};
 	}
 
-	// Filter assistant content blocks
-	if (role === "assistant" && Array.isArray(content)) {
+	if (typeof content === "string" && shouldRedactStrings(config)) {
+		return {
+			...entry,
+			message: { ...entry.message, content: redactString(content, config) },
+		};
+	}
+
+	if (Array.isArray(content)) {
 		const filtered = filterContentBlocks(content as ContentBlock[], config);
 		return {
 			...entry,

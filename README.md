@@ -19,11 +19,12 @@ bunx --silent agent-optic sessions
 - **Privacy by default** — strips tool results and thinking blocks
 - **Multi-tier session loading** — index, meta, detail, and transcript streaming
 - **Agent-first CLI contract** — stable JSON envelope + JSONL streaming + machine-readable errors
+- **Bounded multi-provider observation** — one versioned snapshot of session facts and provider health
 - **Bun-native** — `Bun.file()`, `Bun.Glob`
 
 ### Cost data & staying fully local
 
-`agent-optic` computes token counts and USD cost **entirely locally, with no network access** (see [Security Rules](CLAUDE.md)). The tradeoff: its model pricing is only as current as the installed version, so brand-new models can show as unpriced until you upgrade.
+`agent-optic` computes token counts and USD cost **entirely locally, with no network access** (see [Security](SECURITY.md)). The tradeoff: its model pricing is only as current as the installed version, so brand-new models can show as unpriced until you upgrade.
 
 If you don't need strict locality and want the broadest agent coverage with continuously-updated pricing, [`ccusage`](https://ccusage.com) is a good complement — it prices token usage against the community-maintained [LiteLLM](https://github.com/BerriAI/litellm) table and reads the same on-disk session logs (Claude Code, Codex, pi-agent, and ~15 other CLIs). Note it fetches pricing over the network unless you pass `--offline`, which is why it is *not* fully local. A pattern that works well: use `ccusage` for authoritative multi-provider cost and `agent-optic` for the transcript/prompt detail, joined on session id.
 
@@ -259,6 +260,15 @@ const projects = await ch.aggregate.byProject({ from: "2026-02-01", to: "2026-02
 // Estimate cost of a session
 import { estimateCost } from "agent-optic";
 const cost = estimateCost(withMeta[0]); // USD
+
+// Collect one bounded, versioned observation across provider stores
+import { collectSessionObservation } from "agent-optic";
+const observation = await collectSessionObservation({
+  providers: ["pi", "claude", "codex"],
+  sinceMs: 24 * 60 * 60 * 1000,
+  privacy: "shareable",
+  maxSessions: 12,
+});
 ```
 
 ## API
@@ -277,7 +287,7 @@ const ch = createHistory({
 
 `openai` is currently an alias of Codex-format local history and defaults to `~/.codex`.
 
-`pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include all user prompts, transcript start/end timestamps, `lastFileActivity`, `lastPrompt`, `userPromptCount`, a coarse `activityKind`, and `totalCost` from accumulated message costs. Pi date filters use actual transcript activity, not only the filename date, so a session that started earlier but continued today is still returned.
+`pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include all user prompts, transcript start/end timestamps, `lastFileActivity`, `lastPrompt`, `userPromptCount`, a coarse `activityKind`, privacy-safe lifecycle evidence (`lastMessageRole`, `lastMessageStopReason`, and `lastMessageTimestamp`), and `totalCost` from accumulated message costs. Lifecycle roles and stop reasons are closed vocabularies; unrecognized strings are not exposed. Pi date filters use actual transcript activity, not only the filename date, so a session that started earlier but continued today is still returned. Consumers must treat lifecycle evidence as an observation, not authority to steer or close a session.
 
 `copilot` reads from `~/.copilot/session-state/` — sessions are discovered from `workspace.yaml` files, token totals from `session.shutdown` events in `events.jsonl`.
 
@@ -370,8 +380,10 @@ detectAgentFromCommit(undefined, "copilot-swe-agent[bot]"); // → "github-copil
 | Profile | Strips |
 |---------|--------|
 | `local` (default) | Tool results, thinking blocks |
-| `shareable` | + absolute paths, home directory |
+| `shareable` | + home-rooted paths inside prompt and transcript text |
 | `strict` | + prompt text, emails, credential patterns, IPs |
+
+Project identity fields remain available for local correlation and can contain absolute paths. Privacy profiles minimize content; they do not make arbitrary output safe to publish without review.
 
 ```typescript
 // Use a built-in profile
@@ -404,6 +416,12 @@ bunx --silent agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --prov
 # Complete local scan with bounded, cursor-addressable evidence
 bunx --silent agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --terms "Sample Dashboard,Example App" --max-matches 8 --max-chars 4000
 
+# One bounded observation across provider stores
+bunx --silent agent-optic observe --providers pi,claude,codex --since 24h --privacy shareable --max-sessions 12 --max-prompts 5 --max-prompt-chars 600
+
+# One provider on an exact historical date, with an overridden store
+bunx --silent agent-optic observe --provider pi --provider-dir /path/to/.pi --date 2026-07-14 --raw
+
 # Tool usage report
 bunx --silent agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
 
@@ -427,7 +445,21 @@ Common agent commands:
 - `detail <session-id>` full parsed session
 - `transcript <session-id>` transcript stream/output
 - `evidence <session-id>` scan the complete transcript and return bounded matches, prompts, paths, and tool names
+- `observe` return `agent-optic.observation/v1` session facts plus per-provider `available`, `absent`, or `error` status
 - `tool-usage` aggregated tool analytics
+
+`observe` canonicalizes the `openai` alias to `codex`, so requesting both scans the shared Codex store once. Its v1 session projection and source-capability vocabulary are explicit: future `SessionMeta` fields or capabilities do not silently enter the wire contract. With no date, range, or rolling window, the query records the effective local date it scanned. `completeness` reports observed and returned session counts plus truncation, while `capabilities` describes the contract-level evidence available. `availability` describes provider-store health, not whether matching sessions exist. `--provider-dir` is accepted only when the effective observation contains one provider.
+
+## Validation
+
+Run the tests and the manual Pi lifecycle extraction eval:
+
+```bash
+bun test
+bun evals/pi-lifecycle/run.ts
+```
+
+The eval replays raw Pi JSONL and writes a comparative, privacy-checked receipt to `evals/pi-lifecycle/out/receipt.json`.
 
 ## Architecture
 
@@ -440,6 +472,7 @@ src/
   readers/              # Per-provider file readers (Claude, Codex, Pi, Copilot, Cursor, Claude Desktop, OpenCode)
   parsers/              # Session parsing, tool categorization, content extraction
   aggregations/         # Daily/project/tool summaries, time estimation
+  collectors/           # Bounded single-session evidence and multi-provider observations
   privacy/              # Redaction engine, privacy profiles, credential detection
   utils/                # Dates, paths, providers
   cli/                  # CLI entry point

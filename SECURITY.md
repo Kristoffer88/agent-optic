@@ -4,17 +4,17 @@
 
 ## How this library handles it
 
-- **Zero dependencies.** Nothing to get supply-chained.
-- **No network access.** No `http`, `fetch`, `net`, `dns`, or `WebSocket` anywhere in the codebase.
+- **Zero runtime package dependencies.** This reduces third-party runtime supply-chain surface.
+- **No network access in shipped runtime source.** It does not import or call `http`, `fetch`, `net`, `dns`, or `WebSocket`.
 - **Privacy profiles** strip sensitive fields before data reaches your code:
 
 | Profile | Strips |
 |---------|--------|
 | `local` (default) | Tool results, thinking blocks |
-| `shareable` | + absolute paths, home directory |
+| `shareable` | + home-rooted paths inside prompt and transcript text |
 | `strict` | + prompt text, emails, credential patterns, IPs |
 
-Review output before sharing.
+Project identity and other metadata fields can still contain absolute paths because local consumers use them for correlation. Privacy profiles are minimization controls, not authorization to publish output. Review and independently scan exact outbound data before sharing it.
 
 ## Reporting vulnerabilities
 

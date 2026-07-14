@@ -9,9 +9,12 @@ export { SUPPORTED_PROVIDERS } from "./types/provider.js";
 // Domain types
 export type {
 	HistoryEntry,
+	LifecycleMessageRole,
+	LifecycleStopReason,
 	SessionInfo,
 	SessionMeta,
 	SessionDetail,
+	SourceCapability,
 	ToolCategory,
 	ToolCallSummary,
 } from "./types/session.js";
@@ -25,6 +28,18 @@ export type {
 	SessionEvidencePrompt,
 } from "./types/evidence.js";
 export { collectSessionEvidence } from "./collectors/session-evidence.js";
+export { collectSessionObservation } from "./collectors/session-observation.js";
+export type {
+	CanonicalObservationProvider,
+	ObservedSession,
+	ObservationAvailability,
+	ObservationCapability,
+	ObservationProviderResult,
+	ObservationProviderStatus,
+	ObservationSourceCapability,
+	SessionObservation,
+	SessionObservationOptions,
+} from "./types/observation.js";
 export type { TaskInfo, TodoItem } from "./types/task.js";
 export type { PlanInfo } from "./types/plan.js";
 export type { ProjectInfo, ProjectMemory } from "./types/project.js";

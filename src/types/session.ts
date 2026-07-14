@@ -1,3 +1,6 @@
+export type LifecycleMessageRole = "user" | "assistant" | "toolResult";
+export type LifecycleStopReason = "stop" | "length" | "toolUse" | "error" | "aborted";
+
 /** One line from history.jsonl — a single user prompt. */
 export interface HistoryEntry {
 	display: string;
@@ -25,6 +28,12 @@ export interface SessionInfo {
 	userPromptCount?: number;
 	/** Provider-specific coarse activity kind, e.g. Pi journal-host/tool vs human/cockpit. */
 	activityKind?: string;
+	/** Role of the latest recognized structured transcript message when the provider exposes it. */
+	lastMessageRole?: LifecycleMessageRole;
+	/** Recognized provider stop reason on the latest message, when present. */
+	lastMessageStopReason?: LifecycleStopReason;
+	/** Timestamp of the latest structured transcript message in epoch ms. */
+	lastMessageTimestamp?: number;
 	/** How complete the local provider data is for this session. Omitted means full/legacy provider behavior. */
 	dataCompleteness?: "full" | "prompt-only" | "metadata-only";
 	/** Machine-readable hints for what downstream tools can safely expect. */
@@ -63,7 +72,8 @@ export type SourceCapability =
 	| "cost"
 	| "model"
 	| "project"
-	| "timestamps";
+	| "timestamps"
+	| "lifecycle-event";
 
 export type ToolCategory =
 	| "file_read"
