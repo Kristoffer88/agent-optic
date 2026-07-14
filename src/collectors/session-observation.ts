@@ -108,14 +108,10 @@ function boundedSession(
  * Collect one bounded, deterministic observation across provider stores.
  * Agent-optic reports source facts and provider health; consumers own lifecycle judgment.
  */
-export async function collectSessionObservation(
+export function collectSessionObservation(
 	options: SessionObservationOptions,
-): Promise<SessionObservation> {
-	return collectSessionObservationWithDependencies(options);
-}
-
-/** @internal Deterministic dependency seam for contract tests. */
-export async function collectSessionObservationWithDependencies(
+): Promise<SessionObservation>;
+export async function collectSessionObservation(
 	options: SessionObservationOptions,
 	dependencies: SessionObservationDependencies = {},
 ): Promise<SessionObservation> {
