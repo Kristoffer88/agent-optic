@@ -456,7 +456,7 @@ Run the tests and the manual Pi lifecycle extraction eval:
 
 ```bash
 bun test
-bun run eval:pi-lifecycle
+bun evals/pi-lifecycle/run.ts
 ```
 
 The eval replays raw Pi JSONL and writes a comparative, privacy-checked receipt to `evals/pi-lifecycle/out/receipt.json`.
