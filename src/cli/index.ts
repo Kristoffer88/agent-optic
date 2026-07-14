@@ -40,7 +40,7 @@ OPTIONS
   --project <name|path> Filter by project name or full path
   --provider <name>     Data provider; with observe, select exactly one provider
   --providers <a,b>     Providers for observe (default: pi,claude,codex)
-  --provider-dir <path> Override the directory when observing exactly one provider
+  --provider-dir <path> Override provider data; observe requires one effective provider
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --format <mode>       Output mode: json (default), jsonl
   --fields <a,b,c>      Select object fields (top-level)
