@@ -72,7 +72,7 @@ function boundedSession(
 		promptTimestamps: Array.isArray(session.promptTimestamps)
 			? session.promptTimestamps.slice(-maxPrompts)
 			: [],
-		lastPrompt: prompts.at(-1) ?? session.lastPrompt,
+		lastPrompt: prompts.at(-1) ?? (session.lastPrompt ? cleanPrompt(String(session.lastPrompt), maxPromptChars) : undefined),
 		userPromptCount: session.userPromptCount ?? session.prompts?.length ?? 0,
 	};
 }
