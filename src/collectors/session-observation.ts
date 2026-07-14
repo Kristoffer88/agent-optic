@@ -8,6 +8,7 @@ import type {
 	ObservedSession,
 	ObservationCapability,
 	ObservationProviderResult,
+	ObservationSourceCapability,
 	SessionObservation,
 	SessionObservationOptions,
 } from "../types/observation.js";
@@ -24,6 +25,19 @@ const OBSERVATION_CAPABILITIES: ObservationCapability[] = [
 	"privacy-profile",
 	"source-capabilities",
 ];
+const OBSERVATION_SOURCE_CAPABILITIES = new Set<ObservationSourceCapability>([
+	"prompt",
+	"transcript",
+	"assistant-summary",
+	"tool-calls",
+	"files-referenced",
+	"tokens",
+	"cost",
+	"model",
+	"project",
+	"timestamps",
+	"lifecycle-event",
+]);
 
 type HistoryFactory = typeof createHistory;
 
@@ -92,7 +106,11 @@ function boundedSession(
 		lastMessageStopReason: session.lastMessageStopReason,
 		lastMessageTimestamp: session.lastMessageTimestamp,
 		dataCompleteness: session.dataCompleteness,
-		sourceCapabilities: session.sourceCapabilities ? [...session.sourceCapabilities] : undefined,
+		sourceCapabilities: session.sourceCapabilities
+			? session.sourceCapabilities.filter(
+				(capability): capability is ObservationSourceCapability => OBSERVATION_SOURCE_CAPABILITIES.has(capability as ObservationSourceCapability),
+			)
+			: undefined,
 		gitBranch: session.gitBranch,
 		model: session.model,
 		totalInputTokens: session.totalInputTokens,
@@ -135,10 +153,15 @@ export async function collectSessionObservation(
 	if (options.sinceMs !== undefined && (options.date || options.from || options.to)) {
 		throw new Error("sinceMs cannot be combined with date, from, or to");
 	}
-	const cutoff = options.sinceMs ? now - options.sinceMs : undefined;
+	const cutoff = options.sinceMs !== undefined ? now - options.sinceMs : undefined;
+	const effectiveDate = options.date ?? (
+		options.from === undefined && options.to === undefined && cutoff === undefined
+			? toLocalDate(now)
+			: undefined
+	);
 	const filter = {
-		date: options.date,
-		from: options.from ?? (cutoff ? toLocalDate(cutoff) : undefined),
+		date: effectiveDate,
+		from: options.from ?? (cutoff !== undefined ? toLocalDate(cutoff) : undefined),
 		to: options.to,
 		project: options.project,
 	};
@@ -163,7 +186,7 @@ export async function collectSessionObservation(
 		try {
 			const history = makeHistory({ provider, providerDir, privacy: privacyProfile });
 			let sessions = await history.sessions.listWithMeta(filter);
-			if (cutoff) sessions = sessions.filter((session) => sessionSortValue(session) >= cutoff);
+			if (cutoff !== undefined) sessions = sessions.filter((session) => sessionSortValue(session) >= cutoff);
 			providerResults.push({ provider, status: "available", sessionCount: sessions.length });
 			for (const session of sessions) collected.push(boundedSession(provider, session, maxPrompts, maxPromptChars));
 		} catch (error) {
@@ -206,7 +229,7 @@ export async function collectSessionObservation(
 			providers,
 			privacy: privacyProfile,
 			...(options.project ? { project: options.project } : {}),
-			...(options.date ? { date: options.date } : {}),
+			...(effectiveDate ? { date: effectiveDate } : {}),
 			...(options.from ? { from: options.from } : {}),
 			...(options.to ? { to: options.to } : {}),
 			...(options.sinceMs ? { sinceMs: options.sinceMs } : {}),
