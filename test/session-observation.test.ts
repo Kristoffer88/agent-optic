@@ -27,6 +27,7 @@ describe("collectSessionObservation", () => {
 			codex: [session("codex", 200, ["codex prompt"])],
 		};
 		(rows.pi?.[1] as SessionMeta & { futurePrivateField: string }).futurePrivateField = "must-not-escape-v1";
+		(rows.pi?.[1].timeRange as { start: number; end: number; futureNestedField: string }).futureNestedField = "nested-must-not-escape-v1";
 		const observation = await collectSessionObservation({
 			providers: ["pi", "codex", "claude", "pi"],
 			maxSessions: 2,
@@ -48,6 +49,7 @@ describe("collectSessionObservation", () => {
 		expect(observation.completeness).toEqual({ observedSessions: 3, returnedSessions: 2, truncated: true });
 		expect(observation.capabilities).toContain("provider-health");
 		expect(JSON.stringify(observation)).not.toContain("must-not-escape-v1");
+		expect(JSON.stringify(observation)).not.toContain("nested-must-not-escape-v1");
 		expect(observation.providers.find((item) => item.provider === "claude")?.status).toBe("absent");
 	});
 
