@@ -4,8 +4,8 @@
 
 ## How this library handles it
 
-- **Zero dependencies.** Nothing to get supply-chained.
-- **No network access.** No `http`, `fetch`, `net`, `dns`, or `WebSocket` anywhere in the codebase.
+- **Zero runtime package dependencies.** This reduces third-party runtime supply-chain surface.
+- **No network access in shipped runtime source.** It does not import or call `http`, `fetch`, `net`, `dns`, or `WebSocket`.
 - **Privacy profiles** strip sensitive fields before data reaches your code:
 
 | Profile | Strips |
