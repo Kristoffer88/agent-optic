@@ -9,6 +9,8 @@ export { SUPPORTED_PROVIDERS } from "./types/provider.js";
 // Domain types
 export type {
 	HistoryEntry,
+	LifecycleMessageRole,
+	LifecycleStopReason,
 	SessionInfo,
 	SessionMeta,
 	SessionDetail,
