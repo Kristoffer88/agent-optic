@@ -25,6 +25,18 @@ describe("shareable privacy", () => {
 		expect(JSON.stringify(arrayEntry)).toContain("app/config.json");
 	});
 
+	test("removes the home identity before handling paths that contain spaces", () => {
+		const entry = filterTranscriptEntry({
+			type: "message",
+			message: { role: "user", content: "Read /Users/example/My Projects/private/file.ts now" },
+		}, shareable);
+		const serialized = JSON.stringify(entry);
+
+		expect(serialized).not.toContain("/Users/example");
+		expect(serialized).not.toContain("example/My");
+		expect(serialized).toContain("~/My Projects/private/file.ts");
+	});
+
 	test("applies path redaction to Pi session-list prompts", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "agent-optic-privacy-"));
 		const sessionId = "11111111-1111-4111-8111-111111111111";
