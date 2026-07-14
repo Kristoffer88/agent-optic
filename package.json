@@ -13,7 +13,8 @@
 		"src",
 		"examples",
 		"skills",
-		"evals/pi-lifecycle",
+		"evals/pi-lifecycle/README.md",
+		"evals/pi-lifecycle/run.ts",
 		"CHANGELOG.md",
 		"SECURITY.md"
 	],
