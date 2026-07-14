@@ -81,6 +81,13 @@ describe("observe CLI", () => {
 		expect(observation.providers.map((provider: { provider: string }) => provider.provider)).toEqual(["codex"]);
 	});
 
+	test("rejects observation-only bounds on other commands", async () => {
+		const result = await runCli(["sessions", "--max-sessions", "1"]);
+
+		expect(result.exitCode).toBe(2);
+		expect(JSON.parse(result.stderr).error.code).toBe("UNSUPPORTED_OPTION");
+	});
+
 	test("preserves the legacy evidence-limit error code", async () => {
 		const result = await runCli(["evidence", "session-id", "--max-chars", "0"]);
 
