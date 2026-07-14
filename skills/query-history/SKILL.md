@@ -19,7 +19,7 @@ All Claude Code data lives in `~/.claude/`. Everything is plain JSON or JSONL â€
   todos/*.json                           # todo lists
 ```
 
-Project paths are encoded with `/` replaced by `-`, so a project named `my-app` becomes `-my-app`.
+Project paths are encoded with `/` replaced by `-`, so `/work/my-app` becomes `-work-my-app`.
 
 ---
 
