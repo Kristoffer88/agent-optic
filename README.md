@@ -260,6 +260,15 @@ const projects = await ch.aggregate.byProject({ from: "2026-02-01", to: "2026-02
 // Estimate cost of a session
 import { estimateCost } from "agent-optic";
 const cost = estimateCost(withMeta[0]); // USD
+
+// Collect one bounded, versioned observation across provider stores
+import { collectSessionObservation } from "agent-optic";
+const observation = await collectSessionObservation({
+  providers: ["pi", "claude", "codex"],
+  sinceMs: 24 * 60 * 60 * 1000,
+  privacy: "shareable",
+  maxSessions: 12,
+});
 ```
 
 ## API
@@ -278,7 +287,7 @@ const ch = createHistory({
 
 `openai` is currently an alias of Codex-format local history and defaults to `~/.codex`.
 
-`pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include all user prompts, transcript start/end timestamps, `lastFileActivity`, `lastPrompt`, `userPromptCount`, a coarse `activityKind`, privacy-safe lifecycle evidence (`lastMessageRole`, `lastMessageStopReason`, and `lastMessageTimestamp`), and `totalCost` from accumulated message costs. Pi date filters use actual transcript activity, not only the filename date, so a session that started earlier but continued today is still returned. Consumers must treat lifecycle evidence as an observation, not authority to steer or close a session.
+`pi` reads from `~/.pi/agent/sessions/` — Pi has no `history.jsonl`, so sessions are discovered by scanning the directory tree. Pi sessions include all user prompts, transcript start/end timestamps, `lastFileActivity`, `lastPrompt`, `userPromptCount`, a coarse `activityKind`, privacy-safe lifecycle evidence (`lastMessageRole`, `lastMessageStopReason`, and `lastMessageTimestamp`), and `totalCost` from accumulated message costs. Lifecycle roles and stop reasons are closed vocabularies; unrecognized strings are not exposed. Pi date filters use actual transcript activity, not only the filename date, so a session that started earlier but continued today is still returned. Consumers must treat lifecycle evidence as an observation, not authority to steer or close a session.
 
 `copilot` reads from `~/.copilot/session-state/` — sessions are discovered from `workspace.yaml` files, token totals from `session.shutdown` events in `events.jsonl`.
 
@@ -410,6 +419,9 @@ bunx --silent agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provid
 # One bounded observation across provider stores
 bunx --silent agent-optic observe --providers pi,claude,codex --since 24h --privacy shareable --max-sessions 12 --max-prompts 5 --max-prompt-chars 600
 
+# One provider on an exact historical date, with an overridden store
+bunx --silent agent-optic observe --provider pi --provider-dir /path/to/.pi --date 2026-07-14 --raw
+
 # Tool usage report
 bunx --silent agent-optic tool-usage --provider codex --from 2026-02-01 --to 2026-02-26
 
@@ -436,13 +448,15 @@ Common agent commands:
 - `observe` return `agent-optic.observation/v1` session facts plus per-provider `available`, `absent`, or `error` status
 - `tool-usage` aggregated tool analytics
 
+`observe` canonicalizes the `openai` alias to `codex`, so requesting both scans the shared Codex store once. Its v1 session projection is explicit: future `SessionMeta` additions do not silently enter the wire contract. `completeness` reports observed and returned session counts plus truncation, while `capabilities` describes the contract-level evidence available. `availability` describes provider-store health, not whether matching sessions exist. `--provider-dir` is accepted only when the effective observation contains one provider.
+
 ## Validation
 
 Run the tests and the manual Pi lifecycle extraction eval:
 
 ```bash
 bun test
-bun evals/pi-lifecycle/run.ts
+bun run eval:pi-lifecycle
 ```
 
 The eval replays raw Pi JSONL and writes a comparative, privacy-checked receipt to `evals/pi-lifecycle/out/receipt.json`.
