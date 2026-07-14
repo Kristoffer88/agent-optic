@@ -533,6 +533,25 @@ function assertValidArgs(args: CliArgs): void {
 		);
 	}
 
+	if (args.providers) {
+		const invalid = args.providers.filter((provider) => !isProvider(provider));
+		if (invalid.length > 0) {
+			throw new CliError(
+				"INVALID_PROVIDER",
+				`Invalid provider(s): ${invalid.join(", ")}`,
+				2,
+				{ providers: invalid },
+			);
+		}
+		if (args.command !== "observe") {
+			throw new CliError("UNSUPPORTED_OPTION", "--providers is supported only by observe", 2);
+		}
+	}
+
+	if (args.command === "observe" && args.providerDir && (args.providers?.length ?? 0) > 1) {
+		throw new CliError("UNSUPPORTED_OPTION", "--provider-dir requires exactly one observed provider", 2);
+	} 
+
 	if (args.since && (args.date || args.from || args.to)) {
 		throw new CliError(
 			"CONFLICTING_DATE_FILTERS",
@@ -559,6 +578,27 @@ async function run(args: CliArgs): Promise<void> {
 	if (args.command === "pi-board") args.provider = "pi";
 
 	assertValidArgs(args);
+
+	if (args.command === "observe") {
+		const providers = args.providers ?? ["pi", "claude", "codex"];
+		const providerDirs = args.providerDir && providers.length === 1
+			? { [providers[0]]: args.providerDir }
+			: undefined;
+		const observation = await collectSessionObservation({
+			providers,
+			privacy: args.privacy,
+			providerDirs,
+			project: args.project,
+			from: args.from,
+			to: args.to,
+			sinceMs: args.sinceMs,
+			maxSessions: args.maxSessions ?? args.limit,
+			maxPrompts: args.maxPrompts,
+			maxPromptChars: args.maxPromptChars,
+		});
+		writeOutput("observe", "multiple", observation, { ...args, limit: undefined });
+		return;
+	}
 
 	const providerDir = args.providerDir ?? defaultProviderDir(args.provider);
 	const ch = createHistory({
