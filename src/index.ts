@@ -27,8 +27,10 @@ export type {
 export { collectSessionEvidence } from "./collectors/session-evidence.js";
 export { collectSessionObservation } from "./collectors/session-observation.js";
 export type {
+	CanonicalObservationProvider,
 	ObservedSession,
 	ObservationAvailability,
+	ObservationCapability,
 	ObservationProviderResult,
 	ObservationProviderStatus,
 	SessionObservation,
