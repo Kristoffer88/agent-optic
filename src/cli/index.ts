@@ -4,7 +4,7 @@ import { createHistory } from "../agent-optic.js";
 import type { PrivacyProfile } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import { today, toLocalDate } from "../utils/dates.js";
-import { defaultProviderDir, isProvider } from "../utils/providers.js";
+import { canonicalProvider, defaultProviderDir, isProvider } from "../utils/providers.js";
 import { renderPiAgentBoard, type PiAgentBoardSession } from "../boards/pi-agent-board.js";
 import { collectSessionEvidence } from "../collectors/session-evidence.js";
 import { collectSessionObservation } from "../collectors/session-observation.js";
@@ -86,6 +86,7 @@ interface CliArgs {
 	sinceMs?: number;
 	project?: string;
 	provider: Provider;
+	providerExplicit: boolean;
 	providers?: Provider[];
 	providerDir?: string;
 	privacy: PrivacyProfile;
@@ -177,6 +178,7 @@ function parseArgs(args: string[]): CliArgs {
 	const result: CliArgs = {
 		command: "",
 		provider: "claude",
+		providerExplicit: false,
 		privacy: "local",
 		format: "json",
 		sort: "recent",
@@ -204,6 +206,7 @@ function parseArgs(args: string[]): CliArgs {
 			result.project = takeValue(args, i++, arg);
 		} else if (arg === "--provider") {
 			result.provider = takeValue(args, i++, arg) as Provider;
+			result.providerExplicit = true;
 		} else if (arg === "--providers") {
 			result.providers = takeValue(args, i++, arg)
 				.split(",")
@@ -243,7 +246,10 @@ function parseArgs(args: string[]): CliArgs {
 			const raw = takeValue(args, i++, arg);
 			const parsed = Number.parseInt(raw, 10);
 			if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== raw.trim()) {
-				throw new CliError("INVALID_BOUND", `Invalid ${arg} value: ${raw}. Must be a positive integer.`, 2, { option: arg, value: raw });
+				const code = arg === "--max-matches" || arg === "--max-chars"
+					? "INVALID_EVIDENCE_LIMIT"
+					: "INVALID_BOUND";
+				throw new CliError(code, `Invalid ${arg} value: ${raw}. Must be a positive integer.`, 2, { option: arg, value: raw });
 			}
 			if (arg === "--max-matches") result.maxMatches = parsed;
 			else if (arg === "--max-chars") result.maxChars = parsed;
@@ -511,6 +517,11 @@ function printError(error: CliError, args?: CliArgs): void {
 	console.error(text);
 }
 
+function observedProviders(args: CliArgs): Provider[] {
+	const requested = args.providers ?? (args.providerExplicit ? [args.provider] : ["pi", "claude", "codex"]);
+	return [...new Set(requested.map((provider) => canonicalProvider(provider)))];
+}
+
 function assertValidArgs(args: CliArgs): void {
 	if (!["local", "shareable", "strict"].includes(args.privacy)) {
 		throw new CliError(
@@ -534,6 +545,9 @@ function assertValidArgs(args: CliArgs): void {
 	}
 
 	if (args.providers) {
+		if (args.providers.length === 0) {
+			throw new CliError("INVALID_PROVIDER", "--providers must contain at least one provider", 2);
+		}
 		const invalid = args.providers.filter((provider) => !isProvider(provider));
 		if (invalid.length > 0) {
 			throw new CliError(
@@ -548,7 +562,11 @@ function assertValidArgs(args: CliArgs): void {
 		}
 	}
 
-	if (args.command === "observe" && args.providerDir && (args.providers?.length ?? 0) > 1) {
+	if (args.command === "observe" && args.providers && args.providerExplicit) {
+		throw new CliError("UNSUPPORTED_OPTION", "Use either --provider or --providers with observe, not both", 2);
+	}
+
+	if (args.command === "observe" && args.providerDir && observedProviders(args).length !== 1) {
 		throw new CliError("UNSUPPORTED_OPTION", "--provider-dir requires exactly one observed provider", 2);
 	}
 
@@ -580,7 +598,7 @@ async function run(args: CliArgs): Promise<void> {
 	assertValidArgs(args);
 
 	if (args.command === "observe") {
-		const providers = args.providers ?? ["pi", "claude", "codex"];
+		const providers = observedProviders(args);
 		const providerDirs = args.providerDir && providers.length === 1
 			? { [providers[0]]: args.providerDir }
 			: undefined;
@@ -589,6 +607,7 @@ async function run(args: CliArgs): Promise<void> {
 			privacy: args.privacy,
 			providerDirs,
 			project: args.project,
+			date: args.date,
 			from: args.from,
 			to: args.to,
 			sinceMs: args.sinceMs,
