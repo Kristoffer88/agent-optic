@@ -448,7 +448,7 @@ Common agent commands:
 - `observe` return `agent-optic.observation/v1` session facts plus per-provider `available`, `absent`, or `error` status
 - `tool-usage` aggregated tool analytics
 
-`observe` canonicalizes the `openai` alias to `codex`, so requesting both scans the shared Codex store once. Its v1 session projection is explicit: future `SessionMeta` additions do not silently enter the wire contract. `completeness` reports observed and returned session counts plus truncation, while `capabilities` describes the contract-level evidence available. `availability` describes provider-store health, not whether matching sessions exist. `--provider-dir` is accepted only when the effective observation contains one provider.
+`observe` canonicalizes the `openai` alias to `codex`, so requesting both scans the shared Codex store once. Its v1 session projection and source-capability vocabulary are explicit: future `SessionMeta` fields or capabilities do not silently enter the wire contract. With no date, range, or rolling window, the query records the effective local date it scanned. `completeness` reports observed and returned session counts plus truncation, while `capabilities` describes the contract-level evidence available. `availability` describes provider-store health, not whether matching sessions exist. `--provider-dir` is accepted only when the effective observation contains one provider.
 
 ## Validation
 
