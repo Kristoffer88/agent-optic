@@ -550,7 +550,7 @@ function assertValidArgs(args: CliArgs): void {
 
 	if (args.command === "observe" && args.providerDir && (args.providers?.length ?? 0) > 1) {
 		throw new CliError("UNSUPPORTED_OPTION", "--provider-dir requires exactly one observed provider", 2);
-	} 
+	}
 
 	if (args.since && (args.date || args.from || args.to)) {
 		throw new CliError(
