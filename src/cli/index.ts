@@ -38,9 +38,9 @@ OPTIONS
   --to YYYY-MM-DD       End of date range
   --since <duration>    Rolling window for sessions, e.g. 24h, 90m, 7d
   --project <name|path> Filter by project name or full path
-  --provider <name>     Data provider: claude (default), codex, openai, pi, copilot, cursor, claude-desktop, opencode
+  --provider <name>     Data provider; with observe, select exactly one provider
   --providers <a,b>     Providers for observe (default: pi,claude,codex)
-  --provider-dir <path> Override one provider data directory (default: ~/.<provider>)
+  --provider-dir <path> Override the directory when observing exactly one provider
   --privacy <profile>   Privacy profile: local (default), shareable, strict
   --format <mode>       Output mode: json (default), jsonl
   --fields <a,b,c>      Select object fields (top-level)
@@ -333,7 +333,7 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"thinkingBlockCount",
 		"hasSidechains",
 	],
-	observe: ["schemaVersion", "generatedAt", "availability", "query", "providers", "sessions"],
+	observe: ["schemaVersion", "generatedAt", "availability", "capabilities", "completeness", "query", "providers", "sessions"],
 	evidence: [
 		"schemaVersion",
 		"sessionId",
