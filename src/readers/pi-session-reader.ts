@@ -1,7 +1,14 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { PrivacyConfig } from "../types/privacy.js";
-import type { SessionDetail, SessionInfo, SessionMeta, ToolCallSummary } from "../types/session.js";
+import type {
+	LifecycleMessageRole,
+	LifecycleStopReason,
+	SessionDetail,
+	SessionInfo,
+	SessionMeta,
+	ToolCallSummary,
+} from "../types/session.js";
 import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
 import { toLocalDate } from "../utils/dates.js";
 import { projectName } from "../utils/paths.js";
@@ -85,8 +92,8 @@ export async function readPiHistory(
 		let firstEventTimestamp: number | undefined;
 		let lastEventTimestamp: number | undefined;
 		let lastFileActivity: number | undefined;
-		let lastMessageRole: string | undefined;
-		let lastMessageStopReason: string | undefined;
+		let lastMessageRole: LifecycleMessageRole | undefined;
+		let lastMessageStopReason: LifecycleStopReason | undefined;
 		let lastMessageTimestamp: number | undefined;
 		const prompts: string[] = [];
 		const promptTimestamps: number[] = [];
@@ -120,9 +127,12 @@ export async function readPiHistory(
 				}
 
 				if (entry.type === "message" && entry.message) {
-					if (typeof entry.message.role === "string") {
-						lastMessageRole = entry.message.role;
-						lastMessageStopReason = typeof entry.message.stopReason === "string" ? entry.message.stopReason : undefined;
+					const lifecycleRole = parseLifecycleMessageRole(entry.message.role);
+					if (lifecycleRole) {
+						lastMessageRole = lifecycleRole;
+						lastMessageStopReason = lifecycleRole === "assistant"
+							? parseLifecycleStopReason(entry.message.stopReason)
+							: undefined;
 						lastMessageTimestamp = eventTimestamp;
 					}
 					if (entry.message.role === "user") {
@@ -183,6 +193,16 @@ function parsePiTimestamp(value: unknown): number | undefined {
 	if (typeof value !== "string") return undefined;
 	const ms = new Date(value).getTime();
 	return Number.isFinite(ms) ? ms : undefined;
+}
+
+function parseLifecycleMessageRole(value: unknown): LifecycleMessageRole | undefined {
+	return value === "user" || value === "assistant" || value === "toolResult" ? value : undefined;
+}
+
+function parseLifecycleStopReason(value: unknown): LifecycleStopReason | undefined {
+	return value === "stop" || value === "length" || value === "toolUse" || value === "error" || value === "aborted"
+		? value
+		: undefined;
 }
 
 function piUserPromptText(content: unknown): string | undefined {
