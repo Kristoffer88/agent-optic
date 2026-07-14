@@ -52,6 +52,19 @@ describe("observe CLI", () => {
 			.toEqual(["11111111-1111-4111-8111-111111111111"]);
 	});
 
+	test("uses the canonical provider in a single-provider envelope", async () => {
+		const root = await piFixture();
+		const result = await runCli([
+			"observe", "--provider", "pi", "--provider-dir", root,
+			"--date", "2026-01-02",
+		]);
+
+		expect(result.exitCode).toBe(0);
+		const envelope = JSON.parse(result.stdout);
+		expect(envelope.provider).toBe("pi");
+		expect(envelope.data.query.providers).toEqual(["pi"]);
+	});
+
 	test("rejects a provider directory for the default multi-provider observation", async () => {
 		const root = await piFixture();
 		const result = await runCli(["observe", "--provider-dir", root, "--raw"]);
@@ -79,6 +92,13 @@ describe("observe CLI", () => {
 		const observation = JSON.parse(result.stdout);
 		expect(observation.query.providers).toEqual(["codex"]);
 		expect(observation.providers.map((provider: { provider: string }) => provider.provider)).toEqual(["codex"]);
+	});
+
+	test("rejects a zero rolling window as invalid user input", async () => {
+		const result = await runCli(["observe", "--since", "0h"]);
+
+		expect(result.exitCode).toBe(2);
+		expect(JSON.parse(result.stderr).error.code).toBe("INVALID_SINCE");
 	});
 
 	test("rejects observation-only bounds on other commands", async () => {
