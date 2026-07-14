@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -8,6 +8,9 @@ const runner = join(import.meta.dir, "..", "evals", "pi-lifecycle", "run.ts");
 test("Pi lifecycle eval writes a comparative privacy receipt", async () => {
 	const out = await mkdtemp(join(tmpdir(), "agent-optic-pi-eval-test-"));
 	try {
+		const existingReceipt = join(out, "receipt.json");
+		await writeFile(existingReceipt, "stale\n");
+		await chmod(existingReceipt, 0o644);
 		const process = Bun.spawn([Bun.which("bun")!, runner], {
 			env: { ...Bun.env, AGENT_OPTIC_PI_LIFECYCLE_EVAL_OUT: out },
 			stdout: "pipe",
