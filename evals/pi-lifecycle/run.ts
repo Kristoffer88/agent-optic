@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { isDeepStrictEqual } from "node:util";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { readPiHistory } from "../../src/readers/pi-session-reader.js";
@@ -121,6 +121,7 @@ try {
 	};
 	await mkdir(outDir, { recursive: true });
 	await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
+	await chmod(receiptPath, 0o600);
 	console.log(`${status.toUpperCase()} ${receipt.summary.passedCases}/${receipt.summary.cases} cases; candidate ${receipt.comparison.candidate.passed}/${comparisons.length}, baseline ${receipt.comparison.baseline.passed}/${comparisons.length}`);
 	console.log(`receipt: ${receiptPath}`);
 	process.exitCode = status === "pass" ? 0 : 1;
