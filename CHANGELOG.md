@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- Avoid reading and parsing Claude transcript files for sessions already represented in `history.jsonl`, preserving fallback discovery while making history-backed session lists substantially faster.
+
 ## 0.6.0
 
 - Add the versioned `agent-optic.observation/v1` API and `observe` CLI command for bounded, multi-provider session facts and provider health.

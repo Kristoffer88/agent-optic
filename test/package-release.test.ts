@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 
-test("the 0.6.0 package contains intended validation source but excludes generated receipts", async () => {
+test("the 0.6.1 package contains intended validation source but excludes generated receipts", async () => {
 	const npm = Bun.which("npm");
 	if (!npm) throw new Error("npm is required for the package manifest test");
 	const generatedDir = join(root, "evals", "pi-lifecycle", "out");
@@ -27,7 +27,7 @@ test("the 0.6.0 package contains intended validation source but excludes generat
 		const result = JSON.parse(stdout)[0];
 		const files = new Set<string>(result.files.map((file: { path: string }) => file.path));
 
-		expect(result.version).toBe("0.6.0");
+		expect(result.version).toBe("0.6.1");
 		expect(files.has("src/collectors/session-observation.ts")).toBeTrue();
 		expect(files.has("src/types/observation.ts")).toBeTrue();
 		expect(files.has("evals/pi-lifecycle/run.ts")).toBeTrue();

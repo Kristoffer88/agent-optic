@@ -1,6 +1,6 @@
 {
 	"name": "agent-optic",
-	"version": "0.6.0",
+	"version": "0.6.1",
 	"description": "Zero-dependency, local-first library for reading AI assistant session data from provider home directories",
 	"type": "module",
 	"exports": {
