@@ -1,6 +1,8 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { PlanInfo } from "../types/plan.js";
+import type { PrivacyConfig } from "../types/privacy.js";
+import { redactString, shouldRedactStrings } from "../privacy/redact.js";
 
 function isInDateRange(fileDate: Date, from: string, to: string): boolean {
 	const year = fileDate.getFullYear();
@@ -16,8 +18,13 @@ export async function readPlans(
 	from: string,
 	to: string,
 	includeContent: boolean = false,
+	privacy?: PrivacyConfig,
 ): Promise<PlanInfo[]> {
 	const plans: PlanInfo[] = [];
+	const redact = (value: string): string => {
+		if (privacy?.redactPrompts) return "[redacted]";
+		return privacy && shouldRedactStrings(privacy) ? redactString(value, privacy) : value;
+	};
 
 	let files: string[];
 	try {
@@ -47,9 +54,9 @@ export async function readPlans(
 
 			plans.push({
 				filename: file,
-				title,
-				snippet,
-				content: includeContent ? content : undefined,
+				title: redact(title),
+				snippet: redact(snippet),
+				content: includeContent ? redact(content) : undefined,
 			});
 		} catch {
 			// skip

@@ -3,7 +3,7 @@ import type { PrivacyConfig } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import type { SessionInfo, SessionMeta } from "../types/session.js";
 import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
-import { encodeProjectPath, isUnknownProject, projectName } from "../utils/paths.js";
+import { encodeProjectPath, isSafeSessionId, isUnknownProject, projectName } from "../utils/paths.js";
 import { canonicalProvider } from "../utils/providers.js";
 import { filterTranscriptEntry } from "../privacy/redact.js";
 import {
@@ -29,6 +29,7 @@ async function findClaudeSessionFile(
 	projectsDir: string,
 	sessionId: string,
 ): Promise<string | undefined> {
+	if (!isSafeSessionId(sessionId)) return undefined;
 	const glob = new Bun.Glob(`*/${sessionId}.jsonl`);
 	for await (const rel of glob.scan({ cwd: projectsDir, absolute: false })) {
 		return join(projectsDir, rel);
@@ -42,6 +43,9 @@ export async function resolveClaudeSessionFile(
 	project: string,
 	sessionId: string,
 ): Promise<string | undefined> {
+	// sessionId is interpolated into a filesystem path below; reject any value
+	// that could traverse outside projectsDir (e.g. a crafted history.jsonl entry).
+	if (!isSafeSessionId(sessionId)) return undefined;
 	const direct = join(projectsDir, encodeProjectPath(project), `${sessionId}.jsonl`);
 	if (await Bun.file(direct).exists()) return direct;
 	return findClaudeSessionFile(projectsDir, sessionId);
@@ -339,6 +343,7 @@ async function* streamCodexTranscript(
 				{
 					type: "tool_use",
 					name: raw.payload.name,
+					id: typeof raw.payload.call_id === "string" ? raw.payload.call_id : undefined,
 					input: args,
 				},
 			];
@@ -357,6 +362,7 @@ async function* streamCodexTranscript(
 			mapped = {
 				timestamp: raw.timestamp,
 				toolUseResult: raw.payload?.output,
+				toolUseId: typeof raw.payload?.call_id === "string" ? raw.payload.call_id : undefined,
 			};
 		}
 

@@ -413,6 +413,9 @@ bunx --silent agent-optic detail 019c9aea-484d-7200-87fd-07a545276ac4 --provider
 # Transcript stream (limit + selected fields)
 bunx --silent agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider openai --format jsonl --limit 50 --fields timestamp,message
 
+# Explicit local tool-result stream for deterministic failure correlation
+bunx --silent agent-optic transcript 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --format jsonl --raw --include-tool-results
+
 # Complete local scan with bounded, cursor-addressable evidence
 bunx --silent agent-optic evidence 019c9aea-484d-7200-87fd-07a545276ac4 --provider pi --terms "Sample Dashboard,Example App" --max-matches 8 --max-chars 4000
 
@@ -439,6 +442,7 @@ bunx --silent agent-optic sessions --provider claude --date 2026-02-09 --raw
 Use `--raw` for data-only output and `--format jsonl` for one JSON object per line.
 `sessions` defaults to `--sort recent` (newest of `lastFileActivity`, `timeRange.end`, `timeRange.start`) before applying `--limit`; use `--sort mtime|start|end|recent` to be explicit. Use `--since 24h` / `--since 90m` / `--since 7d` for a rolling session window.
 `--fields` selects top-level fields and fails fast if a requested field is unknown.
+`transcript --include-tool-results` explicitly overrides the profile's default result stripping and includes provider-native correlation fields (`toolUseId`, `toolName`, and `isError` when available). Tool outputs can contain secrets or private code; keep this local and bound downstream display.
 
 Common agent commands:
 - `sessions [session-id?]` list sessions (or filter to one ID)

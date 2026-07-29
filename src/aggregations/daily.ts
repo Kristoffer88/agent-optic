@@ -39,9 +39,9 @@ export async function buildDailySummary(
 
 	// Read tasks, plans, todos in parallel
 	const [tasks, plans, todos] = await Promise.all([
-		readTasks(paths.tasksDir, date, date),
-		readPlans(paths.plansDir, date, date),
-		readTodos(paths.todosDir, date, date),
+		readTasks(paths.tasksDir, date, date, privacy),
+		readPlans(paths.plansDir, date, date, false, privacy),
+		readTodos(paths.todosDir, date, date, privacy),
 	]);
 
 	// Read project memories
@@ -49,7 +49,10 @@ export async function buildDailySummary(
 	const projectMemory = await readProjectMemories(projectPaths, paths.projectsDir, provider);
 
 	const projects = [...new Set(sessionInfos.map((s) => s.projectName))];
-	const totalPrompts = sessionInfos.reduce((sum, s) => sum + s.prompts.length, 0);
+	const totalPrompts = sessionInfos.reduce(
+		(sum, session) => sum + (session.userPromptCount ?? session.prompts.length),
+		0,
+	);
 
 	return {
 		date,

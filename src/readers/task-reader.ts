@@ -1,6 +1,14 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import type { PrivacyConfig } from "../types/privacy.js";
 import type { TaskInfo, TodoItem } from "../types/task.js";
+import { redactString, shouldRedactStrings } from "../privacy/redact.js";
+
+/** Apply string redaction to a value when a redacting profile is active. */
+function maybeRedact(value: string, privacy?: PrivacyConfig): string {
+	if (privacy?.redactPrompts) return "[redacted]";
+	return privacy && shouldRedactStrings(privacy) ? redactString(value, privacy) : value;
+}
 
 function isInDateRange(fileDate: Date, from: string, to: string): boolean {
 	const year = fileDate.getFullYear();
@@ -15,6 +23,7 @@ export async function readTasks(
 	tasksDir: string,
 	from: string,
 	to: string,
+	privacy?: PrivacyConfig,
 ): Promise<TaskInfo[]> {
 	const tasks: TaskInfo[] = [];
 
@@ -52,8 +61,8 @@ export async function readTasks(
 				) {
 					tasks.push({
 						id: content.id,
-						subject: content.subject,
-						description: content.description || "",
+						subject: maybeRedact(content.subject, privacy),
+						description: maybeRedact(content.description || "", privacy),
 						status: content.status,
 						sessionDir,
 						blocks: content.blocks,
@@ -74,6 +83,7 @@ export async function readTodos(
 	todosDir: string,
 	from: string,
 	to: string,
+	privacy?: PrivacyConfig,
 ): Promise<TodoItem[]> {
 	const todos: TodoItem[] = [];
 
@@ -96,7 +106,7 @@ export async function readTodos(
 			if (content.content) {
 				todos.push({
 					id: content.id || file.replace(".json", ""),
-					content: content.content,
+					content: maybeRedact(content.content, privacy),
 					status: content.status || "unknown",
 					sessionDir: content.sessionDir || "",
 				});

@@ -11,7 +11,7 @@ import type {
 } from "../types/session.js";
 import type { ContentBlock, TranscriptEntry } from "../types/transcript.js";
 import { toLocalDate } from "../utils/dates.js";
-import { projectName } from "../utils/paths.js";
+import { isSafeSessionId, projectName } from "../utils/paths.js";
 import { isProjectExcluded, redactString, shouldRedactStrings, filterTranscriptEntry } from "../privacy/redact.js";
 import { extractText, extractFilePaths, countThinkingBlocks } from "../parsers/content-blocks.js";
 import { categorizeToolName, toolDisplayName } from "../parsers/tool-categories.js";
@@ -58,6 +58,8 @@ async function findPiSessionFile(
 	const cached = index.get(sessionId);
 	if (cached) return cached;
 
+	// sessionId is interpolated into the glob below; reject unsafe values.
+	if (!isSafeSessionId(sessionId)) return null;
 	// Fallback for newly created files
 	const glob = new Bun.Glob(`**/*_${sessionId}.jsonl`);
 	for await (const path of glob.scan({ cwd: sessionsDir, absolute: false })) {
@@ -159,11 +161,21 @@ export async function readPiHistory(
 		// Pi sessions can start on an earlier day and continue today; filtering only by filename misses them.
 		if (endDate < from || startDate > to) continue;
 
-		const redactedPrompts = prompts.length > 0
-			? prompts.map((prompt) => redactPiPrompt(prompt, privacy))
+		// A session may span multiple days. Return only prompts inside the requested
+		// window while retaining the full session time range and lifecycle state.
+		const inRangePromptIndexes = promptTimestamps
+			.map((promptTimestamp, index) => ({ index, date: toLocalDate(promptTimestamp) }))
+			.filter(({ date }) => date >= from && date <= to)
+			.map(({ index }) => index);
+		const inRangePrompts = inRangePromptIndexes.map((index) => prompts[index]);
+		const inRangePromptTimestamps = inRangePromptIndexes.map((index) => promptTimestamps[index]);
+		const redactedPrompts = inRangePrompts.length > 0
+			? inRangePrompts.map((prompt) => redactPiPrompt(prompt, privacy))
 			: ["(no prompt)"];
-		const redactedPromptTimestamps = prompts.length > 0 ? promptTimestamps : [ts];
-		const lastPrompt = prompts.length > 0 ? redactPiPrompt(prompts[prompts.length - 1], privacy) : undefined;
+		const redactedPromptTimestamps = inRangePrompts.length > 0 ? inRangePromptTimestamps : [ts];
+		const lastPrompt = inRangePrompts.length > 0
+			? redactPiPrompt(inRangePrompts[inRangePrompts.length - 1], privacy)
+			: undefined;
 
 		sessions.push({
 			sessionId: parsed.sessionId,
@@ -174,8 +186,8 @@ export async function readPiHistory(
 			timeRange: { start: ts, end: endTs },
 			lastFileActivity,
 			lastPrompt,
-			lastPromptTimestamp: promptTimestamps[promptTimestamps.length - 1],
-			userPromptCount: prompts.length,
+			lastPromptTimestamp: inRangePromptTimestamps[inRangePromptTimestamps.length - 1],
+			userPromptCount: inRangePrompts.length,
 			activityKind: classifyPiActivity(prompts),
 			lastMessageRole,
 			lastMessageStopReason,
@@ -508,6 +520,9 @@ export async function* streamPiTranscript(
 			mapped = {
 				timestamp: raw.timestamp,
 				toolUseResult: output,
+				toolUseId: typeof msg.toolCallId === "string" ? msg.toolCallId : undefined,
+				toolName: typeof msg.toolName === "string" ? msg.toolName : undefined,
+				isError: typeof msg.isError === "boolean" ? msg.isError : undefined,
 			};
 		}
 

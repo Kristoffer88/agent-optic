@@ -113,8 +113,8 @@ async function main() {
 		});
 		if (sessions.length === 0) {
 			console.log(`No sessions found for project "${repoName}" (${repoPath}).`);
-			console.log(`Use --all-projects to match across all projects.\n`);
-			sessions = all; // Fall back to all
+			console.log("Use --all-projects to explicitly match across all projects.");
+			return;
 		}
 	}
 

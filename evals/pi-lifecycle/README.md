@@ -1,6 +1,6 @@
 # Pi lifecycle extraction eval
 
-Manual deterministic release eval for the privacy-safe Pi lifecycle fields consumed by Harness cockpit.
+Manual deterministic release eval for privacy-safe Pi lifecycle fields consumed by downstream session monitors.
 
 Run:
 

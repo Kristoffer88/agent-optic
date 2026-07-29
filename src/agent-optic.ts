@@ -236,21 +236,21 @@ export function createHistory(config?: HistoryConfig): History {
 		tasks: {
 			async list(filter: DateFilter): Promise<TaskInfo[]> {
 				const { from, to } = resolveDateRange(filter);
-				return readTasks(paths.tasksDir, from, to);
+				return readTasks(paths.tasksDir, from, to, privacy);
 			},
 		},
 
 		todos: {
 			async list(filter: DateFilter): Promise<TodoItem[]> {
 				const { from, to } = resolveDateRange(filter);
-				return readTodos(paths.todosDir, from, to);
+				return readTodos(paths.todosDir, from, to, privacy);
 			},
 		},
 
 		plans: {
 			async list(filter: DateFilter): Promise<PlanInfo[]> {
 				const { from, to } = resolveDateRange(filter);
-				return readPlans(paths.plansDir, from, to);
+				return readPlans(paths.plansDir, from, to, false, privacy);
 			},
 		},
 

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { isSafeSessionId } from "../utils/paths.js";
 
 interface CodexSessionHeader {
 	cwd?: string;
@@ -50,6 +51,8 @@ export async function findRolloutFile(
 	const cached = index.get(sessionId);
 	if (cached) return cached;
 
+	// sessionId is interpolated into the glob below; reject unsafe values.
+	if (!isSafeSessionId(sessionId)) return null;
 	// Fallback for newly created files before cache refresh.
 	const glob = new Bun.Glob(`**/*-${sessionId}.jsonl`);
 	for await (const path of glob.scan({

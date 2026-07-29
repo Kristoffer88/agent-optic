@@ -6,6 +6,10 @@ export interface ContentBlock {
 	name?: string;
 	id?: string;
 	tool_use_id?: string;
+	/** Provider-native tool-result failure flag (Claude-style content blocks). */
+	is_error?: boolean;
+	/** Normalized/camel-case tool-result failure flag when supplied by a reader. */
+	isError?: boolean;
 	input?: Record<string, unknown>;
 	content?: string | ContentBlock[];
 }
@@ -34,6 +38,12 @@ export interface TranscriptEntry {
 	parentUuid?: string;
 	uuid?: string;
 	toolUseResult?: unknown;
+	/** Tool-call identifier carried by a tool result or provider-native call event. */
+	toolUseId?: string;
+	/** Tool name carried by a provider-native tool result. */
+	toolName?: string;
+	/** Authoritative provider/runtime failure flag when available. */
+	isError?: boolean;
 	/** Metadata-only entry (e.g. image paste) — no real message content */
 	isMeta?: boolean;
 	/** Wall-clock duration of this turn in milliseconds */

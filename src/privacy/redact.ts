@@ -70,6 +70,7 @@ function filterContentBlocks(
 				...(block.text ? { text: redactString(block.text, config) } : {}),
 				...(block.input ? { input: redactUnknown(block.input, config) as Record<string, unknown> } : {}),
 				...(typeof block.content === "string" ? { content: redactString(block.content, config) } : {}),
+				...(Array.isArray(block.content) ? { content: filterContentBlocks(block.content, config) } : {}),
 			});
 		} else {
 			filtered.push(block);
@@ -79,43 +80,70 @@ function filterContentBlocks(
 	return filtered;
 }
 
+// Free-text entry fields (outside message.content) that can carry prompt
+// fragments, paths, or pasted secrets and so must go through string redaction.
+// Identity fields (cwd/project/gitBranch) are intentionally left intact for
+// correlation — see SECURITY.md.
+const REDACTABLE_ENTRY_FIELDS = ["planContent", "error", "slug", "summary"];
+
+/** Redact known free-text string fields on a transcript entry. */
+function redactEntryFields(
+	entry: TranscriptEntry,
+	config: PrivacyConfig,
+): TranscriptEntry {
+	if (!shouldRedactStrings(config)) return entry;
+	let out = entry;
+	for (const field of REDACTABLE_ENTRY_FIELDS) {
+		const value = (out as Record<string, unknown>)[field];
+		if (typeof value === "string") {
+			out = { ...out, [field]: redactString(value, config) };
+		}
+	}
+	return out;
+}
+
 /** Filter a transcript entry according to privacy config. Returns null to skip entirely. */
 export function filterTranscriptEntry(
 	entry: TranscriptEntry,
 	config: PrivacyConfig,
 ): TranscriptEntry | null {
-	// Skip toolUseResult entries
+	// Skip toolUseResult entries unless a local caller explicitly opted in.
 	if (config.stripToolResults && entry.toolUseResult !== undefined) {
 		return null;
 	}
 
-	if (!entry.message) return entry;
+	const redactedFields = redactEntryFields(entry, config);
+	const filteredEntry = redactedFields.toolUseResult !== undefined && shouldRedactStrings(config)
+		? { ...redactedFields, toolUseResult: redactUnknown(redactedFields.toolUseResult, config) }
+		: redactedFields;
 
-	const { role, content } = entry.message;
+	if (!filteredEntry.message) return filteredEntry;
+
+	const { role, content } = filteredEntry.message;
 
 	if (config.redactPrompts && role === "user") {
 		return {
-			...entry,
-			message: { ...entry.message, content: "[redacted]" },
+			...filteredEntry,
+			message: { ...filteredEntry.message, content: "[redacted]" },
 		};
 	}
 
 	if (typeof content === "string" && shouldRedactStrings(config)) {
 		return {
-			...entry,
-			message: { ...entry.message, content: redactString(content, config) },
+			...filteredEntry,
+			message: { ...filteredEntry.message, content: redactString(content, config) },
 		};
 	}
 
 	if (Array.isArray(content)) {
 		const filtered = filterContentBlocks(content as ContentBlock[], config);
 		return {
-			...entry,
-			message: { ...entry.message, content: filtered },
+			...filteredEntry,
+			message: { ...filteredEntry.message, content: filtered },
 		};
 	}
 
-	return entry;
+	return filteredEntry;
 }
 
 /** Check if a project should be excluded. */

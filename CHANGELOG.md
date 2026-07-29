@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Security: validate session identifiers before interpolating them into file paths and globs, closing a path-traversal vector where a crafted `history.jsonl`/session id (`../…`) could read `.jsonl` files outside the provider directory (Claude/Pi/Codex resolvers).
+- Security: expand `strict`-profile credential detection to also redact OpenAI/Anthropic `sk-`/`sk-proj-`/`sk-ant-` keys, JWTs, PEM private-key blocks, Slack, Google, GitLab, GitHub fine-grained, and npm tokens; all patterns remain linear (no ReDoS).
+- Security: run string redaction over free-text transcript fields outside `message.content` (`planContent`, `error`, `slug`, summary) so secrets/paths there no longer bypass `shareable`/`strict`.
+- Security: honor the active privacy profile when reading tasks, todos, and plans, so `daily`/`export` no longer emit unredacted task/plan/todo text.
+
 ## 0.6.1
 
 - Avoid reading and parsing Claude transcript files for sessions already represented in `history.jsonl`, preserving fallback discovery while making history-backed session lists substantially faster.

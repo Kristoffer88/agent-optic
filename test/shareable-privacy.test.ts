@@ -25,6 +25,37 @@ describe("shareable privacy", () => {
 		expect(JSON.stringify(arrayEntry)).toContain("app/config.json");
 	});
 
+	test("redacts explicitly included top-level tool results", () => {
+		const entry = filterTranscriptEntry({
+			toolUseResult: "Read /Users/example/projects/private/output.log",
+			toolUseId: "call-1",
+			isError: true,
+		}, { ...shareable, stripToolResults: false });
+		const serialized = JSON.stringify(entry);
+
+		expect(serialized).not.toContain("/Users/example");
+		expect(serialized).toContain("private/output.log");
+		expect(entry?.toolUseId).toBe("call-1");
+		expect(entry?.isError).toBe(true);
+	});
+
+	test("redacts nested tool-result content blocks when explicitly included", () => {
+		const entry = filterTranscriptEntry({
+			message: {
+				role: "user",
+				content: [{
+					type: "tool_result",
+					tool_use_id: "call-1",
+					content: [{ type: "text", text: "Read /Users/example/projects/private/output.log" }],
+				}],
+			},
+		}, { ...shareable, stripToolResults: false });
+		const serialized = JSON.stringify(entry);
+
+		expect(serialized).not.toContain("/Users/example");
+		expect(serialized).toContain("private/output.log");
+	});
+
 	test("removes the home identity before handling paths that contain spaces", () => {
 		const entry = filterTranscriptEntry({
 			type: "message",

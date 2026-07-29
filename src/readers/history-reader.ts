@@ -256,14 +256,17 @@ async function scanClaudeProjects(
 			}
 
 			const promptText = claudeUserPromptText(entry);
-			if (promptText) {
-				const display = privacy.redactPrompts
-					? "[redacted]"
-					: shouldRedactStrings(privacy)
-						? redactString(promptText, privacy)
-						: promptText;
-				prompts.push(display);
-				if (!Number.isNaN(ts)) promptTimestamps.push(ts);
+			if (promptText && !Number.isNaN(ts)) {
+				const promptDate = toLocalDate(ts);
+				if (promptDate >= from && promptDate <= to) {
+					const display = privacy.redactPrompts
+						? "[redacted]"
+						: shouldRedactStrings(privacy)
+							? redactString(promptText, privacy)
+							: promptText;
+					prompts.push(display);
+					promptTimestamps.push(ts);
+				}
 			}
 		}
 
@@ -284,6 +287,7 @@ async function scanClaudeProjects(
 			promptTimestamps: promptTimestamps.length > 0 ? promptTimestamps : [start],
 			timeRange: { start, end },
 			lastFileActivity: mtime || undefined,
+			userPromptCount: prompts.length,
 		});
 	}
 

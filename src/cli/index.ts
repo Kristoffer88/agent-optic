@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { createHistory } from "../agent-optic.js";
+import { resolvePrivacyConfig } from "../privacy/config.js";
 import type { PrivacyProfile } from "../types/privacy.js";
 import type { Provider } from "../types/provider.js";
 import { today, toLocalDate } from "../utils/dates.js";
@@ -42,6 +43,7 @@ OPTIONS
   --providers <a,b>     Providers for observe (default: pi,claude,codex)
   --provider-dir <path> Override provider data; observe requires one effective provider
   --privacy <profile>   Privacy profile: local (default), shareable, strict
+  --include-tool-results Include tool outputs in transcript (explicit; may contain secrets)
   --format <mode>       Output mode: json (default), jsonl
   --fields <a,b,c>      Select object fields (top-level)
   --sort <mode>         Sort sessions: recent (default), mtime, start, end
@@ -90,6 +92,7 @@ interface CliArgs {
 	providers?: Provider[];
 	providerDir?: string;
 	privacy: PrivacyProfile;
+	includeToolResults: boolean;
 	format: OutputFormat;
 	fields?: string[];
 	sort: SessionSort;
@@ -142,7 +145,7 @@ const VALUE_OPTIONS = new Set([
 
 function takeValue(args: string[], i: number, flag: string): string {
 	const next = args[i + 1];
-	if (next === undefined || VALUE_OPTIONS.has(next) || next === "--pretty" || next === "--raw" || next === "--help" || next === "-h") {
+	if (next === undefined || VALUE_OPTIONS.has(next) || next === "--include-tool-results" || next === "--pretty" || next === "--raw" || next === "--help" || next === "-h") {
 		throw new CliError(
 			"MISSING_OPTION_VALUE",
 			`Missing value for ${flag}`,
@@ -181,6 +184,7 @@ function parseArgs(args: string[]): CliArgs {
 		provider: "claude",
 		providerExplicit: false,
 		privacy: "local",
+		includeToolResults: false,
 		format: "json",
 		sort: "recent",
 		pretty: false,
@@ -217,6 +221,8 @@ function parseArgs(args: string[]): CliArgs {
 			result.providerDir = takeValue(args, i++, arg);
 		} else if (arg === "--privacy") {
 			result.privacy = takeValue(args, i++, arg) as PrivacyProfile;
+		} else if (arg === "--include-tool-results") {
+			result.includeToolResults = true;
 		} else if (arg === "--format") {
 			result.format = takeValue(args, i++, arg) as OutputFormat;
 		} else if (arg === "--fields") {
@@ -358,6 +364,9 @@ const KNOWN_TOP_LEVEL_FIELDS: Record<string, string[]> = {
 		"parentUuid",
 		"uuid",
 		"toolUseResult",
+		"toolUseId",
+		"toolName",
+		"isError",
 		"isMeta",
 		"durationMs",
 		"error",
@@ -571,6 +580,14 @@ function assertValidArgs(args: CliArgs): void {
 		throw new CliError("UNSUPPORTED_OPTION", "--provider-dir requires exactly one observed provider", 2);
 	}
 
+	if (args.includeToolResults && args.command !== "transcript") {
+		throw new CliError(
+			"UNSUPPORTED_OPTION",
+			"--include-tool-results is supported only by transcript",
+			2,
+		);
+	}
+
 	if (args.command !== "observe" && (args.maxSessions !== undefined || args.maxPrompts !== undefined || args.maxPromptChars !== undefined)) {
 		throw new CliError(
 			"UNSUPPORTED_OPTION",
@@ -637,7 +654,9 @@ async function run(args: CliArgs): Promise<void> {
 	const ch = createHistory({
 		provider: args.provider,
 		providerDir,
-		privacy: args.privacy,
+		privacy: args.includeToolResults
+			? { ...resolvePrivacyConfig(args.privacy), stripToolResults: false }
+			: args.privacy,
 	});
 
 	const sinceCutoffMs = args.sinceMs ? Date.now() - args.sinceMs : undefined;

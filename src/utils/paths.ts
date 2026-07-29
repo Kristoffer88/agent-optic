@@ -2,6 +2,22 @@ import { join } from "node:path";
 import type { Provider } from "../types/provider.js";
 import { DEFAULT_PROVIDER, defaultProviderDir } from "./providers.js";
 
+/**
+ * Reject session identifiers that could escape their provider directory when
+ * interpolated into a filesystem path or glob pattern. Session data is only
+ * semi-trusted (another tool or a crafted transcript can plant values), so any
+ * id used to build a path must pass this guard first. Provider session IDs use
+ * a deliberately small filename-safe alphabet; rejecting everything else avoids
+ * platform-specific path and glob syntax that a blocklist could miss.
+ */
+export function isSafeSessionId(sessionId: string): boolean {
+	return (
+		typeof sessionId === "string" &&
+		/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(sessionId) &&
+		!sessionId.includes("..")
+	);
+}
+
 /** Encode a project path for filesystem storage (/ → -). */
 export function encodeProjectPath(projectPath: string): string {
 	return projectPath.replace(/\//g, "-");

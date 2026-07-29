@@ -24,7 +24,7 @@ describe("collectSessionEvidence", () => {
 						type: "tool_use",
 						name: "write",
 						input: {
-							path: "/Users/kristoffer/projects/example/sample-journal/view/sample-dashboard.js",
+							path: "/Users/example/projects/sample/sample-journal/view/sample-dashboard.js",
 							content: "Register Sample Dashboard in Example App app navigation",
 						},
 					}],
@@ -46,7 +46,7 @@ describe("collectSessionEvidence", () => {
 		expect(evidence.scanned.complete).toBe(true);
 		expect(evidence.matches.some((match) => match.kind === "tool-call" && match.terms.includes("Example App"))).toBe(true);
 		expect(evidence.matches.at(-1)?.excerpt).toContain("small apps inside Example App");
-		expect(evidence.footprint.paths).toContain("/Users/kristoffer/projects/example/sample-journal/view/sample-dashboard.js");
+		expect(evidence.footprint.paths).toContain("/Users/example/projects/sample/sample-journal/view/sample-dashboard.js");
 		expect(evidence.prompts.initial[0]?.excerpt).toBe("Find the Sample Dashboard session");
 		expect(evidence.prompts.recent.at(-1)?.excerpt).toBe("Ship it");
 	});
@@ -79,7 +79,7 @@ describe("shareable transcript privacy", () => {
 				content: [{
 					type: "tool_use",
 					name: "read",
-					input: { path: "/Users/kristoffer/projects/private/file.txt" },
+					input: { path: "/Users/example/projects/private/file.txt" },
 				}],
 			},
 		}, resolvePrivacyConfig("shareable"));
